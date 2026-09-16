@@ -5,6 +5,7 @@
 // gestures. You can also use WidgetTester to find child widgets in the widget
 // tree, read text, and verify that the values of widget properties are correct.
 
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
@@ -21,5 +22,20 @@ void main() {
     await tester.pumpWidget(const KaizenApp());
 
     expect(find.text('App launched'), findsOneWidget);
+  });
+
+  testWidgets('restores the resume message after a simulated kill', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(const KaizenApp());
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pumpAndSettle();
+
+    await tester.restartAndRestore();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Resumed after'), findsOneWidget);
   });
 }

@@ -42,6 +42,7 @@ class _HomeScreenState extends State<HomeScreen>
   final RestorableDateTimeN _backgroundedAt = RestorableDateTimeN(null);
   final RestorableString _lastEvent = RestorableString('App launched');
   final SharedPreferencesAsync _preferences = SharedPreferencesAsync();
+  bool _resumeHandled = false;
 
   @override
   String get restorationId => 'home_screen';
@@ -111,11 +112,16 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _recordResumeFromBackground() {
+    if (_resumeHandled) {
+      return;
+    }
+
     final backgroundedAt = _backgroundedAt.value;
     if (backgroundedAt == null) {
       return;
     }
 
+    _resumeHandled = true;
     final elapsed = DateTime.now().difference(backgroundedAt);
     debugPrint('[Lifecycle] resumed after ${elapsed.inSeconds}s');
     _lastEvent.value = 'Resumed after ${elapsed.inSeconds}s backgrounded';
@@ -127,6 +133,7 @@ class _HomeScreenState extends State<HomeScreen>
   void _saveBackgroundTime() {
     // The RestorableProperty handles Android instance state; this persistent
     // copy also survives a launch with no Android restoration bucket.
+    _resumeHandled = false;
     _backgroundedAt.value ??= DateTime.now();
     unawaited(
       _preferences.setString(
@@ -142,7 +149,10 @@ class _HomeScreenState extends State<HomeScreen>
         ? null
         : DateTime.tryParse(savedValue);
 
-    if (!mounted || backgroundedAt == null || _backgroundedAt.value != null) {
+    if (!mounted ||
+        _resumeHandled ||
+        backgroundedAt == null ||
+        _backgroundedAt.value != null) {
       return;
     }
 
