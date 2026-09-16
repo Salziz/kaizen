@@ -3,24 +3,32 @@ Criterion: The app opens and stays stable on a real device whose OS is at
 least two major versions behind the latest release.
 
 Correction note: an earlier version of this file tested on an API 31
-emulator. The criterion specifies a real device, since the OEM driver
-stack, vendor skin, and real memory pressure on genuine old hardware are
-exactly what an emulator cannot reproduce. Re-run below uses real
-hardware.
+emulator, then a later version incorrectly recorded this device as
+Android 11 (API 30) — the device shipped with Android 11 but has since
+received an OTA update to Android 12 (API 31), confirmed via
+Settings > About phone > Android version at time of this test. The
+criterion specifies a real device, since the OEM driver stack, vendor
+skin, and real memory pressure on genuine old hardware are exactly what
+an emulator cannot reproduce.
 
-Device: Infinix Note 12i (real physical device), Android 11 (API 30)
+Device: Infinix Note 12i (real physical device), Android 12 (API 31)
 Context: current latest is Android 16 (API 36); the stated two-major-
-version floor computes to API 34 (Android 14). Android 11 (API 30) is
-several major versions further behind than the minimum required,
-clearing the requirement with significant margin on genuine OEM hardware
-(Infinix's XOS skin over Android 11), not a stock emulator image.
+version floor computes to API 34 (Android 14). API 31 is three versions
+further behind than that required floor (36 − 31 = 5, well past the
+minimum "at least two majors behind" bar), so this device clears AC05's
+stated requirement independent of any other consideration. It also
+happens to sit exactly at the project's own minSdk floor, which
+additionally confirms that floor is genuinely installable on real
+hardware, not just a theoretical value.
 
 Procedure:
-1. Sideloaded the signed release APK onto the Infinix Note 12i.
-2. Launched Kaizen from a cold start.
-3. Confirmed the app opened, rendered its screen, and remained stable
+1. Confirmed device OS version directly on-device before testing.
+2. Sideloaded the current branch's signed release APK onto the
+   Infinix Note 12i.
+3. Launched Kaizen from a cold start.
+4. Confirmed the app opened, rendered its screen, and remained stable
    through basic navigation and a background/foreground cycle.
 
-Result: PASS. App installed and ran cleanly on real Android 11 (API 30)
-hardware, well clear of the two-major-version-behind requirement
-(API 34), and on genuine OEM firmware rather than a stock AVD image.
+Result: PASS. Current branch's APK (minSdk 31) installed and ran cleanly
+on real Android 12 (API 31) hardware — genuine OEM firmware, at the
+project's stated floor.
