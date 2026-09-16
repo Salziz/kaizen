@@ -62,4 +62,21 @@ void main() {
 
     expect(find.textContaining('Resumed after'), findsOneWidget);
   });
+
+  testWidgets('records resume after a plain pause without process death', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(const KaizenApp());
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pump();
+
+    // No restartAndRestore() here — this simulates switching apps or
+    // taking a call, not a kill. In-memory widget state should already
+    // have it, with no restoration bucket or preferences read involved.
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Resumed after'), findsOneWidget);
+  });
 }

@@ -49,8 +49,11 @@ android {
         applicationId = "com.salziz.kaizen.kaizen"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        // API 31 (Android 12) is the project's explicit two-major-version
-        // support floor, rather than relying on Flutter's unexamined default.
+        // Two-major-version floor (Android 16 = API 36) computes to API 34.
+        // Tested against API 31 (Android 12), which clears that floor with margin.
+        // This intentionally drops Android 7–11 (API 24–30) from the install base —
+        // acceptable for this stage, revisit once real device-distribution data
+        // is available (see open question on TFS-001).
         minSdk = 31
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
