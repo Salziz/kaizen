@@ -7,6 +7,27 @@ if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
+fun signingProp(key: String, environmentVariable: String): String? =
+    keystoreProperties.getProperty(key)?.takeIf(String::isNotBlank)
+        ?: System.getenv(environmentVariable)?.takeIf(String::isNotBlank)
+
+val releaseSigningProperties = mapOf(
+    "keyAlias" to signingProp("keyAlias", "KAIZEN_KEY_ALIAS"),
+    "keyPassword" to signingProp("keyPassword", "KAIZEN_KEY_PASSWORD"),
+    "storeFile" to signingProp("storeFile", "KAIZEN_STORE_FILE"),
+    "storePassword" to signingProp("storePassword", "KAIZEN_STORE_PASSWORD"),
+)
+val configuredReleaseSigningProperties = releaseSigningProperties.values.count { it != null }
+if (configuredReleaseSigningProperties !in listOf(0, releaseSigningProperties.size)) {
+    error(
+        "Incomplete release-signing configuration. Set all four properties in " +
+            "android/key.properties or all KAIZEN_* environment variables."
+    )
+}
+val hasReleaseSigning = configuredReleaseSigningProperties == releaseSigningProperties.size
+val allowDebugReleaseSigning =
+    System.getenv("KAIZEN_ALLOW_DEBUG_RELEASE_SIGNING") == "true"
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
@@ -28,6 +49,8 @@ android {
         applicationId = "com.salziz.kaizen.kaizen"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
+        // API 31 (Android 12) is the project's explicit two-major-version
+        // support floor, rather than relying on Flutter's unexamined default.
         minSdk = 31
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
@@ -36,16 +59,41 @@ android {
 
     signingConfigs {
         create("release") {
-            keyAlias = keystoreProperties.getProperty("keyAlias")
-            keyPassword = keystoreProperties.getProperty("keyPassword")
-            storeFile = keystoreProperties.getProperty("storeFile")?.let(::file)
-            storePassword = keystoreProperties.getProperty("storePassword")
+            keyAlias = releaseSigningProperties["keyAlias"]
+            keyPassword = releaseSigningProperties["keyPassword"]
+            storeFile = releaseSigningProperties["storeFile"]?.let(::file)
+            storePassword = releaseSigningProperties["storePassword"]
         }
     }
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("release")
+            signingConfig = if (hasReleaseSigning) {
+                signingConfigs.getByName("release")
+            } else if (allowDebugReleaseSigning) {
+                logger.warn(
+                    "DEBUG-SIGNED RELEASE APK: non-distributable. See README.md for " +
+                        "production signing setup."
+                )
+                signingConfigs.getByName("debug")
+            } else {
+                null
+            }
+        }
+    }
+}
+
+tasks.configureEach {
+    if (name == "assembleRelease" || name == "bundleRelease" || name == "packageRelease") {
+        doFirst {
+            if (!hasReleaseSigning && !allowDebugReleaseSigning) {
+                error(
+                    "No release signing configuration found. Set all four properties in " +
+                        "android/key.properties or all KAIZEN_* environment variables. " +
+                        "For a local release-mode inspection build only, set " +
+                        "KAIZEN_ALLOW_DEBUG_RELEASE_SIGNING=true."
+                )
+            }
         }
     }
 }

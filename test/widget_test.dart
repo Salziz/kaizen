@@ -7,15 +7,18 @@
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
 import 'package:kaizen/main.dart';
 
 void main() {
+  late InMemorySharedPreferencesAsync preferencesStore;
+
   setUp(() {
-    SharedPreferencesAsyncPlatform.instance =
-        InMemorySharedPreferencesAsync.empty();
+    preferencesStore = InMemorySharedPreferencesAsync.empty();
+    SharedPreferencesAsyncPlatform.instance = preferencesStore;
   });
 
   testWidgets('shows the initial event', (WidgetTester tester) async {
@@ -24,7 +27,7 @@ void main() {
     expect(find.text('App launched'), findsOneWidget);
   });
 
-  testWidgets('restores the resume message after a simulated kill', (
+  testWidgets('restores the resume message from the restoration bucket only', (
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(const KaizenApp());
@@ -32,8 +35,29 @@ void main() {
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
     await tester.pumpAndSettle();
 
+    // Remove the durable fallback. A passing assertion now requires the
+    // RestorationManager bucket written during the paused lifecycle event.
+    await SharedPreferencesAsync().remove('backgrounded_at');
+
     await tester.restartAndRestore();
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Resumed after'), findsOneWidget);
+  });
+
+  testWidgets('restores the resume message from preferences without a bucket', (
+    WidgetTester tester,
+  ) async {
+    await preferencesStore.setString(
+      'backgrounded_at',
+      DateTime.now().subtract(const Duration(seconds: 1)).toIso8601String(),
+      const SharedPreferencesOptions(),
+    );
+
+    // No paused lifecycle event is sent, so this fresh widget tree has no
+    // restoration-bucket value. It must use the persisted fallback instead.
+    await tester.pumpWidget(const KaizenApp());
     await tester.pumpAndSettle();
 
     expect(find.textContaining('Resumed after'), findsOneWidget);
