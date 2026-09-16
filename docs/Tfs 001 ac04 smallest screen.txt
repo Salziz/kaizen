@@ -1,0 +1,34 @@
+Kaizen TFS-001 — AC04 evidence (corrected)
+Criterion: Every screen stays fully usable on the smallest screen size the
+platform supports, with the system text size at its largest — nothing
+clipped, nothing unreachable.
+
+Correction note: an earlier version of this file tested on a Pixel 4a
+profile (392dp-wide), which does not represent the platform's smallest
+supported screen class. Re-run below uses a correctly-sized profile.
+
+Device: Custom Android Emulator hardware profile
+  Resolution: 320 x 480
+  Density: mdpi (160dpi)
+  Resulting width: 320dp — the platform's smallest supported screen
+  class (sw320dp)
+System font size: set to largest (Settings > Display > Font size > max)
+
+Procedure:
+1. Created a custom AVD hardware profile at 320x480 / mdpi in Android
+   Studio's Device Manager.
+2. Launched the AVD.
+3. Set system font size to its maximum value.
+4. Installed and launched Kaizen.
+5. Visually inspected the home screen for clipped text, overflow, or
+   unreachable UI elements, with particular attention to status-line
+   wrapping at this narrower width versus the previously (incorrectly)
+   tested 392dp profile.
+
+Result: PASS. No clipping or overflow observed at 320dp with system font
+size at maximum. Screenshot on file.
+
+Note: current screen content is minimal (placeholder text only). This
+check should be re-run as real screens (describe, shortlist, cost
+estimate) are added in later sprints, since layout complexity increases
+overflow risk at this screen size and text scale.

@@ -1,0 +1,97 @@
+Kaizen TFS-001 cold-open evidence
+Package: com.salziz.kaizen.kaizen
+Device: R58Y90F8PWN
+always_finish_activities: 0 (Don't keep activities OFF)
+Started: 2026-09-16T22:26:15.8073162+01:00
+
+--- Launch 1 ---
+Starting: Intent { act=android.intent.action.MAIN cat=[android.intent.category.LAUNCHER] cmp=com.salziz.kaizen.kaizen/.MainActivity }
+Status: ok
+LaunchState: COLD
+Activity: com.salziz.kaizen.kaizen/.MainActivity
+TotalTime: 788
+WaitTime: 802
+Complete
+
+--- Launch 2 ---
+Starting: Intent { act=android.intent.action.MAIN cat=[android.intent.category.LAUNCHER] cmp=com.salziz.kaizen.kaizen/.MainActivity }
+Status: ok
+LaunchState: COLD
+Activity: com.salziz.kaizen.kaizen/.MainActivity
+TotalTime: 527
+WaitTime: 539
+Complete
+
+--- Launch 3 ---
+Starting: Intent { act=android.intent.action.MAIN cat=[android.intent.category.LAUNCHER] cmp=com.salziz.kaizen.kaizen/.MainActivity }
+Status: ok
+LaunchState: COLD
+Activity: com.salziz.kaizen.kaizen/.MainActivity
+TotalTime: 449
+WaitTime: 465
+Complete
+
+--- Launch 4 ---
+Starting: Intent { act=android.intent.action.MAIN cat=[android.intent.category.LAUNCHER] cmp=com.salziz.kaizen.kaizen/.MainActivity }
+Status: ok
+LaunchState: COLD
+Activity: com.salziz.kaizen.kaizen/.MainActivity
+TotalTime: 459
+WaitTime: 467
+Complete
+
+--- Launch 5 ---
+Starting: Intent { act=android.intent.action.MAIN cat=[android.intent.category.LAUNCHER] cmp=com.salziz.kaizen.kaizen/.MainActivity }
+Status: ok
+LaunchState: COLD
+Activity: com.salziz.kaizen.kaizen/.MainActivity
+TotalTime: 433
+WaitTime: 444
+Complete
+
+--- Launch 6 ---
+Starting: Intent { act=android.intent.action.MAIN cat=[android.intent.category.LAUNCHER] cmp=com.salziz.kaizen.kaizen/.MainActivity }
+Status: ok
+LaunchState: COLD
+Activity: com.salziz.kaizen.kaizen/.MainActivity
+TotalTime: 465
+WaitTime: 481
+Complete
+
+--- Launch 7 ---
+Starting: Intent { act=android.intent.action.MAIN cat=[android.intent.category.LAUNCHER] cmp=com.salziz.kaizen.kaizen/.MainActivity }
+Status: ok
+LaunchState: COLD
+Activity: com.salziz.kaizen.kaizen/.MainActivity
+TotalTime: 469
+WaitTime: 481
+Complete
+
+--- Launch 8 ---
+Starting: Intent { act=android.intent.action.MAIN cat=[android.intent.category.LAUNCHER] cmp=com.salziz.kaizen.kaizen/.MainActivity }
+Status: ok
+LaunchState: COLD
+Activity: com.salziz.kaizen.kaizen/.MainActivity
+TotalTime: 432
+WaitTime: 441
+Complete
+
+--- Launch 9 ---
+Starting: Intent { act=android.intent.action.MAIN cat=[android.intent.category.LAUNCHER] cmp=com.salziz.kaizen.kaizen/.MainActivity }
+Status: ok
+LaunchState: COLD
+Activity: com.salziz.kaizen.kaizen/.MainActivity
+TotalTime: 534
+WaitTime: 538
+Complete
+
+--- Launch 10 ---
+Starting: Intent { act=android.intent.action.MAIN cat=[android.intent.category.LAUNCHER] cmp=com.salziz.kaizen.kaizen/.MainActivity }
+Status: ok
+LaunchState: COLD
+Activity: com.salziz.kaizen.kaizen/.MainActivity
+TotalTime: 470
+WaitTime: 481
+Complete
+
+Completed: 2026-09-16T22:26:33.8897200+01:00

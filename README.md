@@ -24,4 +24,53 @@ Tool selection is the first step — what happens *after* you commit to a stack 
 
 ---
 
+## Android release signing
+
+`flutter build apk --release` uses a production signing key when all four
+signing values are supplied. Never commit a keystore or `android/key.properties`.
+
+For local development, generate and securely back up a key:
+
+```powershell
+keytool -genkeypair -v -keystore "$env:USERPROFILE\kaizen-release.keystore" -alias kaizen -keyalg RSA -keysize 2048 -validity 10000
+```
+
+Create the ignored `android/key.properties` file:
+
+```properties
+storePassword=your-store-password
+keyPassword=your-key-password
+keyAlias=kaizen
+storeFile=C:/Users/your-user/kaizen-release.keystore
+```
+
+CI can provide the same values without a file through `KAIZEN_STORE_PASSWORD`,
+`KAIZEN_KEY_PASSWORD`, `KAIZEN_KEY_ALIAS`, and `KAIZEN_STORE_FILE` environment
+variables. The ordinary debug build remains available on a fresh checkout and
+does not require signing configuration:
+
+```powershell
+flutter run
+flutter build apk --debug
+```
+
+The `release` build type fails clearly when production signing is not configured;
+it never silently falls back to the debug key. For a local, non-distributable
+release-mode inspection build only, explicitly opt in:
+
+```powershell
+$env:KAIZEN_ALLOW_DEBUG_RELEASE_SIGNING = "true"
+flutter build apk --release
+```
+
+That APK is not suitable for distribution or updates to production installs.
+Unset the opt-in and configure one of the production signing methods above before
+publishing.
+
+Verify a production artifact with Android SDK Build Tools:
+
+```powershell
+& "C:\Users\your-user\AppData\Local\Android\Sdk\build-tools\<version>\apksigner.bat" verify --print-certs .\build\app\outputs\flutter-apk\app-release.apk
+```
+
 *Kaizen — know your stack, know your cost, before you start.*

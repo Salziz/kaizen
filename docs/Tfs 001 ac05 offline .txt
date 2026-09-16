@@ -1,0 +1,21 @@
+Kaizen TFS-001 — AC05 evidence (part 1 of 2)
+Criterion: The app opens and stays stable on a real device with no network
+connection.
+
+Device: SM A175F (real physical device, Android 16 / API 36)
+Network state: Airplane mode ON (WiFi and mobile data both disabled)
+
+Procedure:
+1. Enabled airplane mode on the device.
+2. Force-stopped Kaizen if running.
+3. Launched Kaizen from the home screen (cold start, offline).
+4. Used the app for a short period — navigated the single screen,
+   backgrounded and foregrounded it.
+
+Result: PASS. App launched normally, no crash, no hang, no error state.
+Expected, since the app currently makes zero network calls — this check
+confirms that baseline holds rather than assuming it. Should be re-run
+once network-dependent features (tool recommendations, cost estimation)
+are added, since AC05's intent is broader than "no network code to
+break" — it's "app stays honest and stable when offline," which becomes
+a real test once there's a network call to fail gracefully around.

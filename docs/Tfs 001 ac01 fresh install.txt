@@ -1,0 +1,30 @@
+Kaizen TFS-001 — AC01 evidence
+Criterion: A real device that has never run the app installs and opens it
+from a cold start with no development machine attached — no cable, no
+computer, no developer account.
+
+Correction note: earlier real-device testing in this PR began from an app
+already installed via adb, which does not exercise this criterion — it
+tests the app, not the distribution chain. This run starts from a genuine
+zero state.
+
+Device: SM A175F (real physical device, Android 16 / API 36)
+
+Procedure:
+1. Fully uninstalled Kaizen from the device via Settings > Apps, confirming
+   removal (see docs/images/tfs-001-ac01-install-prompt.png).
+2. Transferred the signed release APK to the device without a cable —i downloaded
+    the file from my google Drive
+   
+3. Opened the APK file directly from the device's file manager.
+4. Stepped through Android's "install from unknown source" / package
+   installer prompts on-device (screenshot on file — this step is itself
+   evidence no cable or dev tooling was involved, since it's the standard
+   consumer sideload flow).
+5. Confirmed the app installed and launched successfully from a true cold
+   start.
+
+Result: PASS. App installed via phone-only sideload (no cable, no
+computer at time of install) and launched cleanly from a device with no
+prior installation. Screenshots on file for: pre-install uninstalled
+state, install prompt, successful launch.
