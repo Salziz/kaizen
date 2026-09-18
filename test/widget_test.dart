@@ -5,7 +5,7 @@
 // gestures. You can also use WidgetTester to find child widgets in the widget
 // tree, read text, and verify that the values of widget properties are correct.
 
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
@@ -21,10 +21,11 @@ void main() {
     SharedPreferencesAsyncPlatform.instance = preferencesStore;
   });
 
-  testWidgets('shows the initial event', (WidgetTester tester) async {
+  testWidgets('shows the empty chat state', (WidgetTester tester) async {
     await tester.pumpWidget(const KaizenApp());
+    await tester.pumpAndSettle();
 
-    expect(find.text('App launched'), findsOneWidget);
+    expect(find.text('Describe the app you want to build.'), findsOneWidget);
   });
 
   testWidgets('restores the resume message from the restoration bucket only', (
@@ -68,15 +69,26 @@ void main() {
   ) async {
     await tester.pumpWidget(const KaizenApp());
 
-    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
-    await tester.pump();
-
     // No restartAndRestore() here — this simulates switching apps or
     // taking a call, not a kill. In-memory widget state should already
     // have it, with no restoration bucket or preferences read involved.
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await tester.pumpAndSettle();
 
     expect(find.textContaining('Resumed after'), findsOneWidget);
+  });
+
+  testWidgets('disables send for whitespace-only drafts', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(const KaizenApp());
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField), '   ');
+    await tester.pump();
+
+    final button = tester.widget<ElevatedButton>(find.byType(ElevatedButton));
+    expect(button.onPressed, isNull);
   });
 }
