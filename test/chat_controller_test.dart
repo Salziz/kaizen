@@ -33,6 +33,23 @@ void main() {
     expect(controller.messages.single.status, MessageStatus.pending);
   });
 
+  test('sendMessage resolves before the reply completes', () async {
+    final replyCompleter = Completer<String>();
+    final controller = ChatController(
+      ConversationStore(),
+      replySender: (_) => replyCompleter.future,
+    );
+
+    final sendFuture = controller.sendMessage('Hello');
+    await Future<void>.delayed(Duration.zero);
+
+    expect(controller.messages.single.status, MessageStatus.pending);
+    expect(controller.replyState, ReplyState.waiting);
+
+    replyCompleter.complete('Hi there');
+    await sendFuture;
+  });
+
   test('a reply appends an assistant message and resolves the slot', () async {
     final store = ConversationStore();
     final controller = ChatController(
@@ -40,11 +57,13 @@ void main() {
       replySender: (_) async => 'Hi there',
     );
 
-    await controller.sendMessage('Hello');
+    final sendFuture = controller.sendMessage('Hello');
+    await Future<void>.delayed(Duration.zero);
 
     expect(controller.replyState, ReplyState.received);
     expect(controller.messages.length, 2);
     expect(controller.messages.last.sender, MessageSender.assistant);
+    await sendFuture;
   });
 
   test('a waiting exchange becomes noAnswer after the timeout', () async {

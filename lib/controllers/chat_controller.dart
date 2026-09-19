@@ -69,7 +69,7 @@ class ChatController extends ChangeNotifier {
     await _store.clearDraft();
     notifyListeners();
 
-    await _dispatch(message);
+    unawaited(_dispatch(message));
   }
 
   Future<void> retry(String messageId) async {

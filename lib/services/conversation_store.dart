@@ -17,12 +17,25 @@ class ConversationStore {
     }
 
     try {
-      final list = jsonDecode(raw) as List<dynamic>;
-      return list
-          .map(
-            (message) => ChatMessage.fromJson(message as Map<String, dynamic>),
-          )
-          .toList();
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) {
+        throw const FormatException('thread payload must be a list');
+      }
+
+      final messages = <ChatMessage>[];
+      for (final item in decoded) {
+        if (item is! Map) {
+          continue;
+        }
+        try {
+          messages.add(
+            ChatMessage.fromJson(Map<String, dynamic>.from(item)),
+          );
+        } catch (_) {
+          continue;
+        }
+      }
+      return messages;
     } catch (_) {
       await _prefs.remove(_threadKey);
       return [];
