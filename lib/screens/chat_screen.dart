@@ -111,15 +111,18 @@ class _ChatScreenState extends State<ChatScreen>
     });
   }
 
-  void _send() {
+  Future<void> _send() async {
     final text = _textController.text;
     if (text.trim().isEmpty || text.length > _characterLimit) {
       return;
     }
 
+    await _controller.sendMessage(text);
+    if (!mounted) {
+      return;
+    }
     _textController.clear();
-    unawaited(_store.saveDraft(''));
-    unawaited(_controller.sendMessage(text));
+    await _store.saveDraft('');
   }
 
   void _retryLatest() {
@@ -267,6 +270,9 @@ class _ChatScreenState extends State<ChatScreen>
         if (message.sender == MessageSender.user) {
           return _UserBubble(
             message: message,
+            showSending:
+                message.status == MessageStatus.pending &&
+                _controller.replyState != ReplyState.noAnswer,
             onRetry: message.status == MessageStatus.failed
                 ? () => unawaited(_controller.retry(message.id))
                 : null,
@@ -331,7 +337,10 @@ class _ChatScreenState extends State<ChatScreen>
                 ),
               ),
               const SizedBox(width: 8),
-              _SendButton(enabled: canSend, onTap: _send),
+              _SendButton(
+                enabled: canSend,
+                onTap: () => unawaited(_send()),
+              ),
             ],
           ),
           if (text.length >= _warningThreshold)
@@ -389,15 +398,19 @@ class _EmptyState extends StatelessWidget {
 }
 
 class _UserBubble extends StatelessWidget {
-  const _UserBubble({required this.message, this.onRetry});
+  const _UserBubble({
+    required this.message,
+    required this.showSending,
+    this.onRetry,
+  });
 
   final ChatMessage message;
+  final bool showSending;
   final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
     final failed = message.status == MessageStatus.failed;
-    final pending = message.status == MessageStatus.pending;
     return Align(
       alignment: Alignment.centerRight,
       child: GestureDetector(
@@ -437,7 +450,7 @@ class _UserBubble extends StatelessWidget {
                   ),
                 ),
               ),
-              if (pending)
+              if (showSending)
                 const Text(
                   'Sending',
                   style: TextStyle(fontSize: 11.5, color: Colors.grey),

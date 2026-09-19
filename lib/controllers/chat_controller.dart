@@ -144,6 +144,10 @@ class ChatController extends ChangeNotifier {
         await _receiveReply(message.id, exchangeToken, replyText);
       }
     } catch (error) {
+      if (exchangeToken != _activeExchangeToken) {
+        return;
+      }
+
       final index = messages.indexWhere(
         (existing) => existing.id == message.id,
       );
@@ -154,35 +158,29 @@ class ChatController extends ChangeNotifier {
       }
 
       _inFlightIds.remove(message.id);
-
-      if (_activeExchangeToken == exchangeToken) {
-        _timeoutTimer?.cancel();
-        if (_waitingForMessageId == message.id) {
-          replyState = ReplyState.noAnswer;
-        }
+      _timeoutTimer?.cancel();
+      if (_waitingForMessageId == message.id) {
+        replyState = ReplyState.noAnswer;
       }
 
       errorMessage = error.toString().replaceFirst('Bad state: ', '');
       notifyListeners();
-    }
-  }
+    }  }
 
   Future<void> _receiveReply(
     String forMessageId,
     int exchangeToken,
     String replyText,
   ) async {
+    if (exchangeToken != _activeExchangeToken) {
+      return;
+    }
+
     final index = messages.indexWhere((message) => message.id == forMessageId);
-    if (index != -1 && messages[index].status != MessageStatus.sent) {
+    if (index != -1) {
       final sent = messages[index].copyWith(status: MessageStatus.sent);
       messages[index] = sent;
       await _store.upsertMessage(sent);
-    }
-
-    _inFlightIds.remove(forMessageId);
-
-    if (_activeExchangeToken == exchangeToken) {
-      _timeoutTimer?.cancel();
 
       final reply = ChatMessage(
         id: _generateId(),
@@ -193,12 +191,13 @@ class ChatController extends ChangeNotifier {
       );
       messages.add(reply);
       await _store.upsertMessage(reply);
-
-      replyState = ReplyState.received;
-      _waitingForMessageId = null;
-      _activeExchangeToken = null;
     }
 
+    _timeoutTimer?.cancel();
+    replyState = ReplyState.received;
+    _waitingForMessageId = null;
+    _activeExchangeToken = null;
+    _inFlightIds.remove(forMessageId);
     notifyListeners();
   }
 

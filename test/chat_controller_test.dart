@@ -182,7 +182,7 @@ void main() {
     await firstSend;
   });
 
-  test('a superseded exchange that errors still marks its message failed',
+  test('a stale exchange error does not poison the active reply state',
       () async {
     final completerA = Completer<String>();
     final completerB = Completer<String>();
@@ -207,8 +207,9 @@ void main() {
     await Future<void>.delayed(Duration.zero);
 
     final a = controller.messages.firstWhere((message) => message.text == 'A');
-    expect(a.status, MessageStatus.failed);
+    expect(a.status, MessageStatus.pending);
     expect(controller.replyState, ReplyState.received);
+    expect(controller.errorMessage, isNull);
 
     await Future.wait<void>([firstSend, secondSend]);
   });
