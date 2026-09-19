@@ -15,9 +15,10 @@ class ChatController extends ChangeNotifier {
   ChatController(
     this._store, {
     ReplySender? replySender,
-    this._timeoutDuration = const Duration(seconds: 30),
-  }) : _replySender =
-           replySender ?? GroqReplyService.fromEnvironment().generateReply;
+    Duration timeoutDuration = const Duration(seconds: 30),
+  })  : _replySender =
+            replySender ?? GroqReplyService.fromEnvironment().generateReply,
+        _timeoutDuration = timeoutDuration;
 
   final ConversationStore _store;
   final ReplySender _replySender;
@@ -121,28 +122,39 @@ class ChatController extends ChangeNotifier {
     });
 
     try {
+      final stopwatch = Stopwatch()..start();
       final replyText = await _replySender(message.text);
+      stopwatch.stop();
+
+      if (stopwatch.elapsedMilliseconds > 10000) {
+        debugPrint(
+          '[AC01] Reply exceeded 10s budget: '
+          '${stopwatch.elapsedMilliseconds}ms for "${message.text}"',
+        );
+      }
 
       if (replyText.isNotEmpty) {
         await _receiveReply(message.id, exchangeToken, replyText);
       }
     } catch (error) {
-      if (_activeExchangeToken != exchangeToken) {
-        return;
-      }
       final index = messages.indexWhere(
         (existing) => existing.id == message.id,
       );
-      if (index != -1) {
+      if (index != -1 && messages[index].status == MessageStatus.pending) {
         final failed = messages[index].copyWith(status: MessageStatus.failed);
         messages[index] = failed;
         await _store.upsertMessage(failed);
       }
-      _timeoutTimer?.cancel();
+
       _inFlightIds.remove(message.id);
-      if (_waitingForMessageId == message.id) {
-        replyState = ReplyState.noAnswer;
+
+      if (_activeExchangeToken == exchangeToken) {
+        _timeoutTimer?.cancel();
+        if (_waitingForMessageId == message.id) {
+          replyState = ReplyState.noAnswer;
+        }
       }
+
       errorMessage = error.toString().replaceFirst('Bad state: ', '');
       notifyListeners();
     }

@@ -91,4 +91,24 @@ void main() {
     final button = tester.widget<ElevatedButton>(find.byType(ElevatedButton));
     expect(button.onPressed, isNull);
   });
+
+  testWidgets('allows 2000 characters and rejects 2001', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(const KaizenApp());
+    await tester.pumpAndSettle();
+
+    final maxString = 'a' * 2000;
+    await tester.enterText(find.byType(TextField), maxString);
+    await tester.pump();
+
+    final maxButton = tester.widget<ElevatedButton>(find.byType(ElevatedButton));
+    expect(maxButton.onPressed, isNotNull);
+
+    await tester.enterText(find.byType(TextField), 'a' * 2001);
+    await tester.pump();
+
+    final overButton = tester.widget<ElevatedButton>(find.byType(ElevatedButton));
+    expect(overButton.onPressed, isNull);
+  });
 }

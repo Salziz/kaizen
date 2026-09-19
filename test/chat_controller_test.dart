@@ -124,6 +124,37 @@ void main() {
     await send;
   });
 
+  test('a superseded exchange that errors still marks its message failed',
+      () async {
+    final completerA = Completer<String>();
+    final completerB = Completer<String>();
+    var callCount = 0;
+
+    final controller = ChatController(
+      ConversationStore(),
+      replySender: (_) {
+        callCount++;
+        return callCount == 1 ? completerA.future : completerB.future;
+      },
+    );
+
+    final firstSend = controller.sendMessage('A');
+    final secondSend = controller.sendMessage('B');
+
+    completerB.complete('reply to B');
+    await Future<void>.delayed(Duration.zero);
+    expect(controller.replyState, ReplyState.received);
+
+    completerA.completeError(Exception('A failed'));
+    await Future<void>.delayed(Duration.zero);
+
+    final a = controller.messages.firstWhere((message) => message.text == 'A');
+    expect(a.status, MessageStatus.failed);
+    expect(controller.replyState, ReplyState.received);
+
+    await Future.wait<void>([firstSend, secondSend]);
+  });
+
   test('retry does not start another request while one is in flight', () async {
     final replyCompleter = Completer<String>();
     var requests = 0;

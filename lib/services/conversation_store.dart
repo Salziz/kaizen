@@ -16,10 +16,17 @@ class ConversationStore {
       return [];
     }
 
-    final list = jsonDecode(raw) as List<dynamic>;
-    return list
-        .map((message) => ChatMessage.fromJson(message as Map<String, dynamic>))
-        .toList();
+    try {
+      final list = jsonDecode(raw) as List<dynamic>;
+      return list
+          .map(
+            (message) => ChatMessage.fromJson(message as Map<String, dynamic>),
+          )
+          .toList();
+    } catch (_) {
+      await _prefs.remove(_threadKey);
+      return [];
+    }
   }
 
   Future<void> saveThread(List<ChatMessage> messages) async {

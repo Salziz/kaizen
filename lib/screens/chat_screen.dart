@@ -116,8 +116,13 @@ class _ChatScreenState extends State<ChatScreen>
     if (text.trim().isEmpty || text.length > _characterLimit) {
       return;
     }
-    unawaited(_controller.sendMessage(text));
-    _textController.clear();
+    unawaited(
+      _controller.sendMessage(text).whenComplete(() {
+        if (mounted) {
+          _textController.clear();
+        }
+      }),
+    );
   }
 
   void _retryLatest() {
