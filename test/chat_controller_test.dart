@@ -14,7 +14,8 @@ void main() {
         InMemorySharedPreferencesAsync.empty();
   });
 
-  test('restored pending messages resolve to noAnswer', () async {
+  test('restored pending messages are treated as failed instead of ambiguous',
+      () async {
     final store = ConversationStore();
     await store.saveThread([
       ChatMessage(
@@ -29,8 +30,8 @@ void main() {
 
     await controller.loadInitialState();
 
-    expect(controller.replyState, ReplyState.noAnswer);
-    expect(controller.messages.single.status, MessageStatus.pending);
+    expect(controller.replyState, ReplyState.idle);
+    expect(controller.messages.single.status, MessageStatus.failed);
   });
 
   test('sendMessage resolves before the reply completes', () async {
@@ -141,6 +142,44 @@ void main() {
     await retry;
     expect(controller.messages.last.text, 'New reply');
     await send;
+  });
+
+  test('reused message ids reject stale replies from an earlier exchange',
+      () async {
+    final firstReply = Completer<String>();
+    final secondReply = Completer<String>();
+    var calls = 0;
+    final controller = ChatController(
+      ConversationStore(),
+      replySender: (_) {
+        calls += 1;
+        return calls == 1 ? firstReply.future : secondReply.future;
+      },
+      timeoutDuration: const Duration(milliseconds: 1),
+    );
+
+    final firstSend = controller.sendMessage('A');
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+
+    final originalId = controller.messages.first.id;
+    final retryFuture = controller.retry(originalId);
+    await Future<void>.delayed(Duration.zero);
+
+    firstReply.complete('stale reply');
+    await Future<void>.delayed(Duration.zero);
+    expect(
+      controller.messages.where((message) => message.text == 'stale reply'),
+      isEmpty,
+    );
+
+    secondReply.complete('fresh reply');
+    await retryFuture;
+    expect(
+      controller.messages.where((message) => message.text == 'fresh reply'),
+      hasLength(1),
+    );
+
+    await firstSend;
   });
 
   test('a superseded exchange that errors still marks its message failed',

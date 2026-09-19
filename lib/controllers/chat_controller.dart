@@ -7,7 +7,7 @@ import '../models/chat_message.dart';
 import '../services/conversation_store.dart';
 import '../services/groq_reply_service.dart';
 
-enum ReplyState { waiting, received, noAnswer }
+enum ReplyState { idle, waiting, received, noAnswer }
 
 typedef ReplySender = Future<String> Function(String text);
 
@@ -40,14 +40,21 @@ class ChatController extends ChangeNotifier {
       ..clear()
       ..addAll(await _store.loadThread());
 
-    final stillPending = messages.where(
-      (message) => message.status == MessageStatus.pending,
-    );
-    if (stillPending.isNotEmpty) {
-      _waitingForMessageId = stillPending.last.id;
-      replyState = ReplyState.noAnswer;
+    var changed = false;
+    for (var i = 0; i < messages.length; i++) {
+      if (messages[i].status == MessageStatus.pending) {
+        messages[i] = messages[i].copyWith(status: MessageStatus.failed);
+        changed = true;
+      }
     }
 
+    if (changed) {
+      await _store.saveThread(messages);
+    }
+
+    _waitingForMessageId = null;
+    _activeExchangeToken = null;
+    replyState = ReplyState.idle;
     notifyListeners();
   }
 
@@ -165,24 +172,33 @@ class ChatController extends ChangeNotifier {
     int exchangeToken,
     String replyText,
   ) async {
-    if (_activeExchangeToken != exchangeToken ||
-        _waitingForMessageId != forMessageId) {
-      return;
+    final index = messages.indexWhere((message) => message.id == forMessageId);
+    if (index != -1 && messages[index].status != MessageStatus.sent) {
+      final sent = messages[index].copyWith(status: MessageStatus.sent);
+      messages[index] = sent;
+      await _store.upsertMessage(sent);
     }
 
-    _timeoutTimer?.cancel();
-    final reply = ChatMessage(
-      id: _generateId(),
-      text: replyText,
-      sender: MessageSender.assistant,
-      timestamp: DateTime.now(),
-      status: MessageStatus.sent,
-    );
-    messages.add(reply);
-    await _store.upsertMessage(reply);
-
-    replyState = ReplyState.received;
     _inFlightIds.remove(forMessageId);
+
+    if (_activeExchangeToken == exchangeToken) {
+      _timeoutTimer?.cancel();
+
+      final reply = ChatMessage(
+        id: _generateId(),
+        text: replyText,
+        sender: MessageSender.assistant,
+        timestamp: DateTime.now(),
+        status: MessageStatus.sent,
+      );
+      messages.add(reply);
+      await _store.upsertMessage(reply);
+
+      replyState = ReplyState.received;
+      _waitingForMessageId = null;
+      _activeExchangeToken = null;
+    }
+
     notifyListeners();
   }
 

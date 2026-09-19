@@ -9,6 +9,7 @@ class ConversationStore {
   static const _draftKey = 'draft_text';
 
   final SharedPreferencesAsync _prefs = SharedPreferencesAsync();
+  Future<void> _writeLock = Future.value();
 
   Future<List<ChatMessage>> loadThread() async {
     final raw = await _prefs.getString(_threadKey);
@@ -49,15 +50,20 @@ class ConversationStore {
     await _prefs.setString(_threadKey, encoded);
   }
 
-  Future<void> upsertMessage(ChatMessage message) async {
-    final thread = await loadThread();
-    final index = thread.indexWhere((existing) => existing.id == message.id);
-    if (index >= 0) {
-      thread[index] = message;
-    } else {
-      thread.add(message);
-    }
-    await saveThread(thread);
+  Future<void> upsertMessage(ChatMessage message) {
+    final result = _writeLock.then((_) async {
+      final thread = await loadThread();
+      final index = thread.indexWhere((existing) => existing.id == message.id);
+      if (index >= 0) {
+        thread[index] = message;
+      } else {
+        thread.add(message);
+      }
+      await saveThread(thread);
+    });
+
+    _writeLock = result.catchError((_) {});
+    return result;
   }
 
   Future<String> loadDraft() async {
