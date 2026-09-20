@@ -133,14 +133,28 @@ void main() {
     expect(await store.loadDraft(), 'unsent text');
   });
 
-  test('corrupt stored thread data is discarded instead of poisoning the view',
-      () async {
-    final store = ConversationStore();
-    await SharedPreferencesAsync().setString(
-      'conversation_thread',
-      '{not valid json}',
-    );
+  test(
+    'corrupt stored thread data is discarded instead of poisoning the view',
+    () async {
+      final store = ConversationStore();
+      await SharedPreferencesAsync().setString(
+        'conversation_thread',
+        '{not valid json}',
+      );
 
-    expect(await store.loadThread(), isEmpty);
+      expect(await store.loadThread(), isEmpty);
+    },
+  );
+
+  test('round-trip log keeps only the latest 50 measurements', () async {
+    final store = ConversationStore();
+    for (var i = 0; i < 55; i++) {
+      await store.recordRoundTrip(i);
+    }
+
+    final records = await store.loadRoundTripLog();
+    expect(records, hasLength(50));
+    expect(records.first.milliseconds, 5);
+    expect(records.last.milliseconds, 54);
   });
 }

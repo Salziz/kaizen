@@ -4,9 +4,29 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/chat_message.dart';
 
+class RoundTripRecord {
+  const RoundTripRecord({required this.timestamp, required this.milliseconds});
+
+  final DateTime timestamp;
+  final int milliseconds;
+
+  factory RoundTripRecord.fromJson(Map<String, dynamic> json) {
+    return RoundTripRecord(
+      timestamp: DateTime.parse(json['timestamp'] as String),
+      milliseconds: json['milliseconds'] as int,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'timestamp': timestamp.toIso8601String(),
+    'milliseconds': milliseconds,
+  };
+}
+
 class ConversationStore {
   static const _threadKey = 'conversation_thread';
   static const _draftKey = 'draft_text';
+  static const _roundTripLogKey = 'round_trip_log';
 
   final SharedPreferencesAsync _prefs = SharedPreferencesAsync();
   Future<void> _writeLock = Future.value();
@@ -29,9 +49,7 @@ class ConversationStore {
           continue;
         }
         try {
-          messages.add(
-            ChatMessage.fromJson(Map<String, dynamic>.from(item)),
-          );
+          messages.add(ChatMessage.fromJson(Map<String, dynamic>.from(item)));
         } catch (_) {
           continue;
         }
@@ -76,5 +94,50 @@ class ConversationStore {
 
   Future<void> clearDraft() async {
     await _prefs.remove(_draftKey);
+  }
+
+  Future<List<RoundTripRecord>> loadRoundTripLog() async {
+    final raw = await _prefs.getString(_roundTripLogKey);
+    if (raw == null) {
+      return [];
+    }
+
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) {
+        throw const FormatException('round-trip log must be a list');
+      }
+      return decoded
+          .whereType<Map>()
+          .map(
+            (item) => RoundTripRecord.fromJson(Map<String, dynamic>.from(item)),
+          )
+          .toList();
+    } catch (_) {
+      await _prefs.remove(_roundTripLogKey);
+      return [];
+    }
+  }
+
+  Future<void> saveRoundTripLog(List<RoundTripRecord> records) async {
+    final capped = records.length <= 50
+        ? records
+        : records.sublist(records.length - 50);
+    await _prefs.setString(
+      _roundTripLogKey,
+      jsonEncode(capped.map((record) => record.toJson()).toList()),
+    );
+  }
+
+  Future<void> recordRoundTrip(int milliseconds) async {
+    final result = _writeLock.then((_) async {
+      final records = await loadRoundTripLog();
+      records.add(
+        RoundTripRecord(timestamp: DateTime.now(), milliseconds: milliseconds),
+      );
+      await saveRoundTripLog(records);
+    });
+    _writeLock = result.catchError((_) {});
+    await result;
   }
 }

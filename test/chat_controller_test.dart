@@ -14,25 +14,27 @@ void main() {
         InMemorySharedPreferencesAsync.empty();
   });
 
-  test('restored pending messages are treated as failed instead of ambiguous',
-      () async {
-    final store = ConversationStore();
-    await store.saveThread([
-      ChatMessage(
-        id: 'pending-1',
-        text: 'Hello',
-        sender: MessageSender.user,
-        timestamp: DateTime.now(),
-        status: MessageStatus.pending,
-      ),
-    ]);
-    final controller = ChatController(store);
+  test(
+    'restored pending messages are treated as failed instead of ambiguous',
+    () async {
+      final store = ConversationStore();
+      await store.saveThread([
+        ChatMessage(
+          id: 'pending-1',
+          text: 'Hello',
+          sender: MessageSender.user,
+          timestamp: DateTime.now(),
+          status: MessageStatus.pending,
+        ),
+      ]);
+      final controller = ChatController(store);
 
-    await controller.loadInitialState();
+      await controller.loadInitialState();
 
-    expect(controller.replyState, ReplyState.idle);
-    expect(controller.messages.single.status, MessageStatus.failed);
-  });
+      expect(controller.replyState, ReplyState.idle);
+      expect(controller.messages.single.status, MessageStatus.failed);
+    },
+  );
 
   test('sendMessage resolves before the reply completes', () async {
     final replyCompleter = Completer<String>();
@@ -44,7 +46,7 @@ void main() {
     final sendFuture = controller.sendMessage('Hello');
     await Future<void>.delayed(Duration.zero);
 
-    expect(controller.messages.single.status, MessageStatus.pending);
+    expect(controller.messages.single.status, MessageStatus.sent);
     expect(controller.replyState, ReplyState.waiting);
 
     replyCompleter.complete('Hi there');
@@ -79,9 +81,19 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 10));
 
     expect(controller.replyState, ReplyState.noAnswer);
-    expect(controller.messages.single.status, MessageStatus.pending);
+    expect(controller.messages.single.status, MessageStatus.sent);
     replyCompleter.complete('');
     await send;
+  });
+
+  test('a completed exchange records its round-trip duration', () async {
+    final store = ConversationStore();
+    final controller = ChatController(store, replySender: (_) async => 'reply');
+
+    await controller.sendMessage('Hello');
+    await Future<void>.delayed(Duration.zero);
+
+    expect((await store.loadRoundTripLog()), hasLength(1));
   });
 
   test('retry after noAnswer starts one replacement request', () async {
@@ -144,75 +156,81 @@ void main() {
     await send;
   });
 
-  test('reused message ids reject stale replies from an earlier exchange',
-      () async {
-    final firstReply = Completer<String>();
-    final secondReply = Completer<String>();
-    var calls = 0;
-    final controller = ChatController(
-      ConversationStore(),
-      replySender: (_) {
-        calls += 1;
-        return calls == 1 ? firstReply.future : secondReply.future;
-      },
-      timeoutDuration: const Duration(milliseconds: 1),
-    );
+  test(
+    'reused message ids reject stale replies from an earlier exchange',
+    () async {
+      final firstReply = Completer<String>();
+      final secondReply = Completer<String>();
+      var calls = 0;
+      final controller = ChatController(
+        ConversationStore(),
+        replySender: (_) {
+          calls += 1;
+          return calls == 1 ? firstReply.future : secondReply.future;
+        },
+        timeoutDuration: const Duration(milliseconds: 1),
+      );
 
-    final firstSend = controller.sendMessage('A');
-    await Future<void>.delayed(const Duration(milliseconds: 10));
+      final firstSend = controller.sendMessage('A');
+      await Future<void>.delayed(const Duration(milliseconds: 10));
 
-    final originalId = controller.messages.first.id;
-    final retryFuture = controller.retry(originalId);
-    await Future<void>.delayed(Duration.zero);
+      final originalId = controller.messages.first.id;
+      final retryFuture = controller.retry(originalId);
+      await Future<void>.delayed(Duration.zero);
 
-    firstReply.complete('stale reply');
-    await Future<void>.delayed(Duration.zero);
-    expect(
-      controller.messages.where((message) => message.text == 'stale reply'),
-      isEmpty,
-    );
+      firstReply.complete('stale reply');
+      await Future<void>.delayed(Duration.zero);
+      expect(
+        controller.messages.where((message) => message.text == 'stale reply'),
+        isEmpty,
+      );
 
-    secondReply.complete('fresh reply');
-    await retryFuture;
-    expect(
-      controller.messages.where((message) => message.text == 'fresh reply'),
-      hasLength(1),
-    );
+      secondReply.complete('fresh reply');
+      await retryFuture;
+      expect(
+        controller.messages.where((message) => message.text == 'fresh reply'),
+        hasLength(1),
+      );
 
-    await firstSend;
-  });
+      await firstSend;
+    },
+  );
 
-  test('a stale exchange error does not poison the active reply state',
-      () async {
-    final completerA = Completer<String>();
-    final completerB = Completer<String>();
-    var callCount = 0;
+  test(
+    'a stale exchange error does not poison the active reply state',
+    () async {
+      final completerA = Completer<String>();
+      final completerB = Completer<String>();
+      var callCount = 0;
 
-    final controller = ChatController(
-      ConversationStore(),
-      replySender: (_) {
-        callCount++;
-        return callCount == 1 ? completerA.future : completerB.future;
-      },
-    );
+      final controller = ChatController(
+        ConversationStore(),
+        replySender: (_) {
+          callCount++;
+          return callCount == 1 ? completerA.future : completerB.future;
+        },
+      );
 
-    final firstSend = controller.sendMessage('A');
-    final secondSend = controller.sendMessage('B');
+      final firstSend = controller.sendMessage('A');
+      final secondSend = controller.sendMessage('B');
 
-    completerB.complete('reply to B');
-    await Future<void>.delayed(Duration.zero);
-    expect(controller.replyState, ReplyState.received);
+      completerB.complete('reply to B');
+      await Future<void>.delayed(Duration.zero);
+      expect(controller.replyState, ReplyState.received);
 
-    completerA.completeError(Exception('A failed'));
-    await Future<void>.delayed(Duration.zero);
+      completerA.completeError(Exception('A failed'));
+      await Future<void>.delayed(Duration.zero);
 
-    final a = controller.messages.firstWhere((message) => message.text == 'A');
-    expect(a.status, MessageStatus.pending);
-    expect(controller.replyState, ReplyState.received);
-    expect(controller.errorMessage, isNull);
+      final a = controller.messages.firstWhere(
+        (message) => message.text == 'A',
+      );
+      expect(a.status, MessageStatus.sent);
+      expect(controller.replyState, ReplyState.received);
+      expect(controller.errorMessage, isNull);
 
-    await Future.wait<void>([firstSend, secondSend]);
-  });
+      await Future.wait<void>([firstSend, secondSend]);
+    },
+  );
 
   test('retry does not start another request while one is in flight', () async {
     final replyCompleter = Completer<String>();

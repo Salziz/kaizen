@@ -33,6 +33,7 @@ class _ChatScreenState extends State<ChatScreen>
   bool _showNewReplyPill = false;
   int _lastMessageCount = 0;
   bool _initialized = false;
+  bool _isSending = false;
 
   @override
   String get restorationId => 'chat_screen';
@@ -112,17 +113,27 @@ class _ChatScreenState extends State<ChatScreen>
   }
 
   Future<void> _send() async {
+    if (_isSending) {
+      return;
+    }
     final text = _textController.text;
     if (text.trim().isEmpty || text.length > _characterLimit) {
       return;
     }
 
-    await _controller.sendMessage(text);
-    if (!mounted) {
-      return;
+    setState(() => _isSending = true);
+    try {
+      await _controller.sendMessage(text);
+      if (!mounted) {
+        return;
+      }
+      _textController.clear();
+      await _store.saveDraft('');
+    } finally {
+      if (mounted) {
+        setState(() => _isSending = false);
+      }
     }
-    _textController.clear();
-    await _store.saveDraft('');
   }
 
   void _retryLatest() {
@@ -261,10 +272,15 @@ class _ChatScreenState extends State<ChatScreen>
       padding: const EdgeInsets.fromLTRB(16, 18, 16, 10),
       itemCount:
           messages.length +
-          (_controller.replyState == ReplyState.waiting ? 1 : 0),
+          (_controller.replyState == ReplyState.waiting ||
+                  _controller.replyState == ReplyState.overdue
+              ? 1
+              : 0),
       itemBuilder: (context, index) {
         if (index == messages.length) {
-          return const _ReplyDots();
+          return _ReplyDots(
+            overdue: _controller.replyState == ReplyState.overdue,
+          );
         }
         final message = messages[index];
         if (message.sender == MessageSender.user) {
@@ -273,6 +289,9 @@ class _ChatScreenState extends State<ChatScreen>
             showSending:
                 message.status == MessageStatus.pending &&
                 _controller.replyState != ReplyState.noAnswer,
+            showNoAnswer:
+                message.status == MessageStatus.sent &&
+                _controller.replyState == ReplyState.noAnswer,
             onRetry: message.status == MessageStatus.failed
                 ? () => unawaited(_controller.retry(message.id))
                 : null,
@@ -286,8 +305,10 @@ class _ChatScreenState extends State<ChatScreen>
   Widget _buildComposer() {
     final text = _textController.text;
     final over = text.length > _characterLimit;
-    final waiting = _controller.replyState == ReplyState.waiting;
-    final canSend = text.trim().isNotEmpty && !over && !waiting;
+    final waiting =
+        _controller.replyState == ReplyState.waiting ||
+        _controller.replyState == ReplyState.overdue;
+    final canSend = text.trim().isNotEmpty && !over && !waiting && !_isSending;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 6, 16, 16),
       child: Column(
@@ -337,10 +358,7 @@ class _ChatScreenState extends State<ChatScreen>
                 ),
               ),
               const SizedBox(width: 8),
-              _SendButton(
-                enabled: canSend,
-                onTap: () => unawaited(_send()),
-              ),
+              _SendButton(enabled: canSend, onTap: () => unawaited(_send())),
             ],
           ),
           if (text.length >= _warningThreshold)
@@ -401,11 +419,13 @@ class _UserBubble extends StatelessWidget {
   const _UserBubble({
     required this.message,
     required this.showSending,
+    required this.showNoAnswer,
     this.onRetry,
   });
 
   final ChatMessage message;
   final bool showSending;
+  final bool showNoAnswer;
   final VoidCallback? onRetry;
 
   @override
@@ -455,6 +475,11 @@ class _UserBubble extends StatelessWidget {
                   'Sending',
                   style: TextStyle(fontSize: 11.5, color: Colors.grey),
                 ),
+              if (showNoAnswer)
+                const Text(
+                  'No response',
+                  style: TextStyle(fontSize: 11.5, color: Colors.grey),
+                ),
               if (failed)
                 const Text(
                   'Not sent. Tap to send again.',
@@ -490,15 +515,27 @@ class _AssistantBlock extends StatelessWidget {
 }
 
 class _ReplyDots extends StatelessWidget {
-  const _ReplyDots();
+  const _ReplyDots({required this.overdue});
+
+  final bool overdue;
 
   @override
   Widget build(BuildContext context) {
-    return const Align(
+    return Align(
       alignment: Alignment.centerLeft,
       child: Padding(
-        padding: EdgeInsets.symmetric(vertical: 12),
-        child: Text('•••', style: TextStyle(color: Colors.grey)),
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('•••', style: TextStyle(color: Colors.grey)),
+            if (overdue)
+              const Text(
+                'Still working on it...',
+                style: TextStyle(fontSize: 11.5, color: Colors.grey),
+              ),
+          ],
+        ),
       ),
     );
   }

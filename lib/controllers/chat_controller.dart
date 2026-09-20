@@ -7,7 +7,7 @@ import '../models/chat_message.dart';
 import '../services/conversation_store.dart';
 import '../services/groq_reply_service.dart';
 
-enum ReplyState { idle, waiting, received, noAnswer }
+enum ReplyState { idle, waiting, overdue, received, noAnswer }
 
 typedef ReplySender = Future<String> Function(String text);
 
@@ -15,10 +15,9 @@ class ChatController extends ChangeNotifier {
   ChatController(
     this._store, {
     ReplySender? replySender,
-    Duration timeoutDuration = const Duration(seconds: 30),
-  })  : _replySender =
-            replySender ?? GroqReplyService.fromEnvironment().generateReply,
-        _timeoutDuration = timeoutDuration;
+    this._timeoutDuration = const Duration(seconds: 30),
+  }) : _replySender =
+           replySender ?? GroqReplyService.fromEnvironment().generateReply;
 
   final ConversationStore _store;
   final ReplySender _replySender;
@@ -117,13 +116,31 @@ class ChatController extends ChangeNotifier {
     errorMessage = null;
     notifyListeners();
 
+    final index = messages.indexWhere((item) => item.id == message.id);
+    if (index != -1 && messages[index].status != MessageStatus.sent) {
+      final sent = messages[index].copyWith(status: MessageStatus.sent);
+      messages[index] = sent;
+      await _store.upsertMessage(sent);
+      notifyListeners();
+    }
+
     _timeoutTimer?.cancel();
+    Timer? budgetTimer;
+    budgetTimer = Timer(const Duration(seconds: 10), () {
+      if (_activeExchangeToken == exchangeToken &&
+          replyState == ReplyState.waiting) {
+        replyState = ReplyState.overdue;
+        notifyListeners();
+      }
+    });
     _timeoutTimer = Timer(_timeoutDuration, () {
       if (_activeExchangeToken == exchangeToken &&
           _waitingForMessageId == message.id &&
-          replyState == ReplyState.waiting) {
+          (replyState == ReplyState.waiting ||
+              replyState == ReplyState.overdue)) {
         replyState = ReplyState.noAnswer;
         _inFlightIds.remove(message.id);
+        budgetTimer?.cancel();
         notifyListeners();
       }
     });
@@ -132,18 +149,14 @@ class ChatController extends ChangeNotifier {
       final stopwatch = Stopwatch()..start();
       final replyText = await _replySender(message.text);
       stopwatch.stop();
-
-      if (stopwatch.elapsedMilliseconds > 10000) {
-        debugPrint(
-          '[AC01] Reply exceeded 10s budget: '
-          '${stopwatch.elapsedMilliseconds}ms for "${message.text}"',
-        );
-      }
+      budgetTimer.cancel();
+      await _store.recordRoundTrip(stopwatch.elapsedMilliseconds);
 
       if (replyText.isNotEmpty) {
         await _receiveReply(message.id, exchangeToken, replyText);
       }
     } catch (error) {
+      budgetTimer.cancel();
       if (exchangeToken != _activeExchangeToken) {
         return;
       }
@@ -165,7 +178,8 @@ class ChatController extends ChangeNotifier {
 
       errorMessage = error.toString().replaceFirst('Bad state: ', '');
       notifyListeners();
-    }  }
+    }
+  }
 
   Future<void> _receiveReply(
     String forMessageId,
@@ -178,10 +192,6 @@ class ChatController extends ChangeNotifier {
 
     final index = messages.indexWhere((message) => message.id == forMessageId);
     if (index != -1) {
-      final sent = messages[index].copyWith(status: MessageStatus.sent);
-      messages[index] = sent;
-      await _store.upsertMessage(sent);
-
       final reply = ChatMessage(
         id: _generateId(),
         text: replyText,
