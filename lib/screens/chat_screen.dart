@@ -117,7 +117,7 @@ class _ChatScreenState extends State<ChatScreen>
       return;
     }
     final text = _textController.text;
-    if (text.trim().isEmpty || text.length > _characterLimit) {
+    if (text.trim().isEmpty || text.characters.length > _characterLimit) {
       return;
     }
 
@@ -230,7 +230,16 @@ class _ChatScreenState extends State<ChatScreen>
         appBar: AppBar(
           backgroundColor: const Color(0xFFF5F3EE),
           elevation: 0,
-          title: const Text('New project'),
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('New project'),
+              Text(
+                'Last reply: ${_controller.lastRoundTripMs == null ? '—' : '${(_controller.lastRoundTripMs! / 1000).toStringAsFixed(1)}s'}',
+                style: const TextStyle(fontSize: 11, color: Colors.grey),
+              ),
+            ],
+          ),
         ),
         body: SafeArea(
           child: Column(
@@ -304,7 +313,8 @@ class _ChatScreenState extends State<ChatScreen>
 
   Widget _buildComposer() {
     final text = _textController.text;
-    final over = text.length > _characterLimit;
+    final characterCount = text.characters.length;
+    final over = characterCount > _characterLimit;
     final waiting =
         _controller.replyState == ReplyState.waiting ||
         _controller.replyState == ReplyState.overdue;
@@ -361,13 +371,13 @@ class _ChatScreenState extends State<ChatScreen>
               _SendButton(enabled: canSend, onTap: () => unawaited(_send())),
             ],
           ),
-          if (text.length >= _warningThreshold)
+          if (characterCount >= _warningThreshold)
             Padding(
               padding: const EdgeInsets.only(top: 6, right: 8),
               child: Text(
                 over
-                    ? '${text.length} / $_characterLimit   ${text.length - _characterLimit} over'
-                    : '${text.length} / $_characterLimit',
+                    ? '$characterCount / $_characterLimit   ${characterCount - _characterLimit} over'
+                    : '$characterCount / $_characterLimit',
                 style: TextStyle(
                   fontSize: 11.5,
                   color: over ? Colors.red : const Color(0xFF8A5A00),

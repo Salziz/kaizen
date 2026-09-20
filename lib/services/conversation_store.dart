@@ -119,6 +119,11 @@ class ConversationStore {
     }
   }
 
+  Future<RoundTripRecord?> loadLastRoundTrip() async {
+    final records = await loadRoundTripLog();
+    return records.isEmpty ? null : records.last;
+  }
+
   Future<void> saveRoundTripLog(List<RoundTripRecord> records) async {
     final capped = records.length <= 50
         ? records

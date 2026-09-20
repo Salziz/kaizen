@@ -7,6 +7,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
@@ -102,13 +103,32 @@ void main() {
     await tester.enterText(find.byType(TextField), maxString);
     await tester.pump();
 
-    final maxButton = tester.widget<ElevatedButton>(find.byType(ElevatedButton));
+    final maxButton = tester.widget<ElevatedButton>(
+      find.byType(ElevatedButton),
+    );
     expect(maxButton.onPressed, isNotNull);
 
     await tester.enterText(find.byType(TextField), 'a' * 2001);
     await tester.pump();
 
-    final overButton = tester.widget<ElevatedButton>(find.byType(ElevatedButton));
+    final overButton = tester.widget<ElevatedButton>(
+      find.byType(ElevatedButton),
+    );
     expect(overButton.onPressed, isNull);
+  });
+
+  testWidgets('counts an emoji grapheme as one composer character', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(const KaizenApp());
+    await tester.pumpAndSettle();
+
+    final emoji = '👨‍👩‍👧‍👦';
+    await tester.enterText(find.byType(TextField), emoji * 2000);
+    await tester.pump();
+
+    expect((emoji * 2000).characters.length, 2000);
+    final button = tester.widget<ElevatedButton>(find.byType(ElevatedButton));
+    expect(button.onPressed, isNotNull);
   });
 }

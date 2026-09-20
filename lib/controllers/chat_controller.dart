@@ -33,11 +33,13 @@ class ChatController extends ChangeNotifier {
   int? _activeExchangeToken;
   ReplyState? replyState;
   String? errorMessage;
+  int? lastRoundTripMs;
 
   Future<void> loadInitialState() async {
     messages
       ..clear()
       ..addAll(await _store.loadThread());
+    lastRoundTripMs = (await _store.loadLastRoundTrip())?.milliseconds;
 
     var changed = false;
     for (var i = 0; i < messages.length; i++) {
@@ -51,9 +53,21 @@ class ChatController extends ChangeNotifier {
       await _store.saveThread(messages);
     }
 
+    final lastSentIndex = messages.lastIndexWhere(
+      (message) =>
+          message.sender == MessageSender.user &&
+          message.status == MessageStatus.sent,
+    );
     _waitingForMessageId = null;
     _activeExchangeToken = null;
     replyState = ReplyState.idle;
+    if (lastSentIndex != -1 &&
+        !messages
+            .skip(lastSentIndex + 1)
+            .any((message) => message.sender == MessageSender.assistant)) {
+      _waitingForMessageId = messages[lastSentIndex].id;
+      replyState = ReplyState.noAnswer;
+    }
     notifyListeners();
   }
 
@@ -150,7 +164,13 @@ class ChatController extends ChangeNotifier {
       final replyText = await _replySender(message.text);
       stopwatch.stop();
       budgetTimer.cancel();
-      await _store.recordRoundTrip(stopwatch.elapsedMilliseconds);
+      lastRoundTripMs = stopwatch.elapsedMilliseconds;
+      notifyListeners();
+      unawaited(
+        _store
+            .recordRoundTrip(stopwatch.elapsedMilliseconds)
+            .catchError((_) {}),
+      );
 
       if (replyText.isNotEmpty) {
         await _receiveReply(message.id, exchangeToken, replyText);
@@ -164,7 +184,7 @@ class ChatController extends ChangeNotifier {
       final index = messages.indexWhere(
         (existing) => existing.id == message.id,
       );
-      if (index != -1 && messages[index].status == MessageStatus.pending) {
+      if (index != -1) {
         final failed = messages[index].copyWith(status: MessageStatus.failed);
         messages[index] = failed;
         await _store.upsertMessage(failed);
@@ -173,7 +193,7 @@ class ChatController extends ChangeNotifier {
       _inFlightIds.remove(message.id);
       _timeoutTimer?.cancel();
       if (_waitingForMessageId == message.id) {
-        replyState = ReplyState.noAnswer;
+        replyState = ReplyState.idle;
       }
 
       errorMessage = error.toString().replaceFirst('Bad state: ', '');

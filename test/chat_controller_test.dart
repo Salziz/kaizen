@@ -36,6 +36,24 @@ void main() {
     },
   );
 
+  test('restores a sent user message without a reply as noAnswer', () async {
+    final store = ConversationStore();
+    await store.saveThread([
+      ChatMessage(
+        id: 'sent-1',
+        text: 'Hello',
+        sender: MessageSender.user,
+        timestamp: DateTime.now(),
+        status: MessageStatus.sent,
+      ),
+    ]);
+    final controller = ChatController(store);
+
+    await controller.loadInitialState();
+
+    expect(controller.replyState, ReplyState.noAnswer);
+  });
+
   test('sendMessage resolves before the reply completes', () async {
     final replyCompleter = Completer<String>();
     final controller = ChatController(
@@ -231,6 +249,23 @@ void main() {
       await Future.wait<void>([firstSend, secondSend]);
     },
   );
+
+  test('an active exchange error marks a dispatched message failed', () async {
+    final error = Completer<String>();
+    final controller = ChatController(
+      ConversationStore(),
+      replySender: (_) => error.future,
+    );
+
+    final send = controller.sendMessage('Hello');
+    await Future<void>.delayed(Duration.zero);
+    error.completeError(Exception('network failed'));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(controller.messages.single.status, MessageStatus.failed);
+    expect(controller.replyState, ReplyState.idle);
+    await send;
+  });
 
   test('retry does not start another request while one is in flight', () async {
     final replyCompleter = Completer<String>();
