@@ -18,6 +18,28 @@ Describe your app — by typing or by voice — and Kaizen recommends the tools 
 
 The goal is simple: walk in with an idea, walk out with a tool stack and a number, in one sitting.
 
+## Local Groq configuration
+
+The chat uses Groq's OpenAI-compatible API. Keep the API key out of source
+control and inject it at build time:
+
+```powershell
+$env:GROQ_API_KEY = "your-groq-api-key"
+flutter run -d <device-id> `
+  --dart-define=GROQ_API_KEY=$env:GROQ_API_KEY
+```
+
+The default model is `openai/gpt-oss-120b`, matching the current Groq example.
+Override it when needed with:
+
+```powershell
+$env:GROQ_MODEL = "openai/gpt-oss-120b"
+```
+
+The key is embedded in a development mobile build, so this approach is for
+local testing only. Production builds should call a backend that keeps the
+Groq key server-side.
+
 ## Roadmap
 
 Tool selection is the first step — what happens *after* you commit to a stack is next on the list.
