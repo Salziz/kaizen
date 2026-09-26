@@ -6,23 +6,111 @@ import 'package:http/http.dart' as http;
 import 'package:kaizen/services/groq_reply_service.dart';
 
 void main() {
-  test('parses Groq text from a successful response', () async {
-    final client = _FakeClient(
-      http.Response(
-        jsonEncode({
-          'choices': [
-            {
-              'message': {'content': 'Hello from Groq'},
-            },
-          ],
-        }),
-        200,
+  test(
+    'extracts project facts and returns a deterministic shortlist',
+    () async {
+      final client = _FakeClient(
+        http.Response(
+          jsonEncode({
+            'choices': [
+              {
+                'message': {
+                  'content': jsonEncode({
+                    'projectType': 'group chat app',
+                    'budget': null,
+                    'platforms': ['android'],
+                    'features': ['realtime messaging'],
+                  }),
+                },
+              },
+            ],
+          }),
+          200,
+        ),
+      );
+      final service = GroqReplyService(apiKey: 'test-key', client: client);
+
+      final reply = await service.generateReply(
+        'I am building a group chat app for Android with realtime messaging.',
+      );
+      expect(reply, contains('Here is a starter shortlist'));
+      expect(reply, contains('Supabase'));
+      expect(reply, contains('Tradeoff:'));
+      expect(reply, contains('No usable budget was available'));
+      expect(
+        client.lastRequest?.headers['authorization']?.startsWith('Bearer '),
+        isTrue,
+      );
+
+      final request =
+          jsonDecode((client.lastRequest! as http.Request).body)
+              as Map<String, dynamic>;
+      final messages = request['messages'] as List<dynamic>;
+      final systemMessage = messages.first as Map<String, dynamic>;
+      expect(systemMessage['role'], 'system');
+      expect(
+        systemMessage['content'],
+        contains('do not infer missing details'),
+      );
+      expect(request['response_format'], {'type': 'json_object'});
+    },
+  );
+
+  test(
+    'asks for clarification when extracted facts have no constraints',
+    () async {
+      final service = GroqReplyService(
+        apiKey: 'test-key',
+        client: _FakeClient(
+          http.Response(
+            jsonEncode({
+              'choices': [
+                {
+                  'message': {
+                    'content':
+                        '{"projectType":"chat app","platforms":[],"features":[]}',
+                  },
+                },
+              ],
+            }),
+            200,
+          ),
+        ),
+      );
+
+      final reply = await service.generateReply('I want to build a chat app.');
+      expect(reply, contains('What constraint should I prioritize?'));
+      expect(reply, isNot(contains('Here is a starter shortlist')));
+    },
+  );
+
+  test('reports invalid extractor JSON rather than treating it as a reply', () {
+    final service = GroqReplyService(
+      apiKey: 'test-key',
+      client: _FakeClient(
+        http.Response(
+          jsonEncode({
+            'choices': [
+              {
+                'message': {'content': 'A chat app needs a backend.'},
+              },
+            ],
+          }),
+          200,
+        ),
       ),
     );
-    final service = GroqReplyService(apiKey: 'test-key', client: client);
 
-    expect(await service.generateReply('Hello'), 'Hello from Groq');
-    expect(client.lastRequest?.headers['authorization'], 'Bearer test-key');
+    expect(
+      service.generateReply('I want to build a chat app.'),
+      throwsA(
+        isA<StateError>().having(
+          (error) => error.message,
+          'message',
+          contains('invalid project facts JSON'),
+        ),
+      ),
+    );
   });
 
   test('fails clearly when the API key is missing', () async {

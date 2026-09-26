@@ -3,25 +3,36 @@ import 'package:kaizen/models/project_state.dart';
 import 'package:kaizen/services/recommendation_gate.dart';
 
 void main() {
-  group('AC01 — minimal but concrete descriptions pass the gate', () {
-    test('group chat app', () {
+  group('AC01 — project descriptions with stated constraints pass', () {
+    test('group chat app with platforms and budget', () {
       final result = evaluateRecommendationGate(
-        const ProjectState(projectType: 'group chat app'),
+        const ProjectState(
+          projectType: 'group chat app for a small friend circle',
+          platforms: ['ios', 'android'],
+          budget: Budget(amount: 0, currency: 'USD', hard: true),
+        ),
       );
       expect(result.canRecommend, isTrue);
       expect(result.missing, isEmpty);
     });
 
-    test('small storefront', () {
+    test('small storefront with feature and budget', () {
       final result = evaluateRecommendationGate(
-        const ProjectState(projectType: 'small storefront'),
+        const ProjectState(
+          projectType: 'small online storefront for handmade jewelry',
+          features: ['card payments'],
+          budget: Budget(amount: 40, currency: 'USD', hard: true),
+        ),
       );
       expect(result.canRecommend, isTrue);
     });
 
-    test('simple game', () {
+    test('simple game with a platform and no budget', () {
       final result = evaluateRecommendationGate(
-        const ProjectState(projectType: 'simple game'),
+        const ProjectState(
+          projectType: 'simple 2D single-player mobile game',
+          platforms: ['android'],
+        ),
       );
       expect(result.canRecommend, isTrue);
     });
@@ -34,11 +45,12 @@ void main() {
       expect(result.missing, contains('projectType'));
     });
 
-    test('empty-string project type counts as unstated, not a value', () {
+    test('empty-string project type counts as unstated', () {
       final result = evaluateRecommendationGate(
         const ProjectState(projectType: ''),
       );
       expect(result.canRecommend, isFalse);
+      expect(result.missing, contains('projectType'));
     });
 
     test('whitespace-only project type counts as unstated', () {
@@ -46,55 +58,132 @@ void main() {
         const ProjectState(projectType: '   '),
       );
       expect(result.canRecommend, isFalse);
+      expect(result.missing, contains('projectType'));
     });
-  });
 
-  group('Budget/platform/features are optional, not gating', () {
-    test('project type alone, with no budget, still passes', () {
-      // This is the AC01 case restated deliberately: the gate must
-      // NOT be tempted to require a budget just because AC03 cares
-      // about budget acknowledgment downstream. Those are separate
-      // concerns — gating vs. validating — and conflating them would
-      // make AC01's three minimal test cases fail.
+    test('a project name without any stated constraint is refused', () {
       final result = evaluateRecommendationGate(
-        const ProjectState(projectType: 'simple game', platforms: []),
+        const ProjectState(projectType: 'chat app'),
       );
-      expect(result.canRecommend, isTrue);
+      expect(result.canRecommend, isFalse);
+      expect(result.missing, contains('constraint'));
     });
 
-    test('fully detailed rich description also passes', () {
+    test('a hard zero budget is a stated constraint', () {
       final result = evaluateRecommendationGate(
         const ProjectState(
-          projectType: 'collaborative markdown notes app',
-          budget: Budget(amount: 30, currency: 'USD', hard: true),
-          platforms: ['ios', 'android', 'web'],
-          features: ['realtime sync', 'authentication'],
+          projectType: 'chat app',
+          budget: Budget(amount: 0, currency: 'USD', hard: true),
         ),
       );
       expect(result.canRecommend, isTrue);
     });
+
+    test('a feature alone is enough to clear the constraint requirement', () {
+      final result = evaluateRecommendationGate(
+        const ProjectState(
+          projectType: 'chat app',
+          features: ['group messaging'],
+        ),
+      );
+      expect(result.canRecommend, isTrue);
+    });
+
+    test('an invalid budget object is not treated as a constraint', () {
+      final result = evaluateRecommendationGate(
+        const ProjectState(
+          projectType: 'chat app',
+          budget: Budget(amount: -1, currency: 'USD', hard: true),
+        ),
+      );
+      expect(result.canRecommend, isFalse);
+      expect(result.missing, contains('constraint'));
+    });
+
+    test('blank platform and feature entries do not count as constraints', () {
+      final result = evaluateRecommendationGate(
+        const ProjectState(
+          projectType: 'chat app',
+          platforms: ['  '],
+          features: [''],
+        ),
+      );
+      expect(result.canRecommend, isFalse);
+      expect(result.missing, contains('constraint'));
+    });
   });
 
-  group('ProjectState JSON round-trip (matches the envelope shape)', () {
+  group('ProjectState JSON parsing', () {
     test('parses a budget-bearing envelope correctly', () {
-      final json = {
+      final state = ProjectState.fromJson({
         'projectType': 'small storefront',
         'budget': {'amount': 50, 'currency': 'USD', 'hard': true},
         'platforms': ['ios', 'android'],
         'features': ['product list', 'cart', 'checkout'],
-      };
-      final state = ProjectState.fromJson(json);
+      });
       expect(state.projectType, 'small storefront');
       expect(state.budget?.amount, 50);
       expect(state.budget?.hard, isTrue);
       expect(state.platforms, ['ios', 'android']);
+      expect(state.features, ['product list', 'cart', 'checkout']);
     });
 
-    test('missing/null fields parse as null, not defaulted values', () {
-      final state = ProjectState.fromJson({'projectType': null});
+    test('missing or invalid fields degrade to unknown values', () {
+      final state = ProjectState.fromJson({
+        'projectType': null,
+        'budget': 'free',
+        'platforms': 'android',
+        'features': [null, 4, '  '],
+      });
       expect(state.projectType, isNull);
       expect(state.budget, isNull);
+      expect(state.platforms, isEmpty);
+      expect(state.features, isEmpty);
       expect(evaluateRecommendationGate(state).canRecommend, isFalse);
+    });
+
+    test(
+      'partial or malformed budgets degrade to null instead of throwing',
+      () {
+        final missingAmount = ProjectState.fromJson({
+          'projectType': 'chat app',
+          'budget': {'currency': 'USD'},
+        });
+        final stringAmount = ProjectState.fromJson({
+          'projectType': 'chat app',
+          'budget': {'amount': 'fifty', 'currency': 'USD'},
+        });
+        final invalidHardFlag = ProjectState.fromJson({
+          'projectType': 'chat app',
+          'budget': {'amount': 50, 'currency': 'USD', 'hard': 'yes'},
+        });
+
+        expect(missingAmount.budget, isNull);
+        expect(stringAmount.budget, isNull);
+        expect(invalidHardFlag.budget, isNull);
+        expect(evaluateRecommendationGate(missingAmount).canRecommend, isFalse);
+        expect(
+          evaluateRecommendationGate(invalidHardFlag).canRecommend,
+          isFalse,
+        );
+      },
+    );
+
+    test('serializes and parses its valid state', () {
+      const state = ProjectState(
+        projectType: 'chat app',
+        budget: Budget(amount: 50, currency: 'USD', hard: true),
+        platforms: ['android'],
+        features: ['group messaging'],
+      );
+
+      final restored = ProjectState.fromJson(state.toJson());
+      expect(restored.projectType, state.projectType);
+      expect(restored.budget?.amount, state.budget?.amount);
+      expect(restored.budget?.currency, state.budget?.currency);
+      expect(restored.budget?.hard, state.budget?.hard);
+      expect(restored.platforms, state.platforms);
+      expect(restored.features, state.features);
     });
   });
 }

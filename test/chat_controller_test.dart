@@ -87,6 +87,32 @@ void main() {
     await sendFuture;
   });
 
+  test(
+    'recommendation extraction receives prior user facts, not assistant replies',
+    () async {
+      final prompts = <String>[];
+      final controller = ChatController(
+        ConversationStore(),
+        replySender: (prompt) async {
+          prompts.add(prompt);
+          return 'Clarifying question';
+        },
+      );
+
+      await controller.sendMessage('I am building a group chat app.');
+      await Future<void>.delayed(Duration.zero);
+      await controller.sendMessage(
+        'It must support Android and realtime messaging.',
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(prompts, hasLength(2));
+      expect(prompts.last, contains('I am building a group chat app.'));
+      expect(prompts.last, contains('Android and realtime messaging.'));
+      expect(prompts.last, isNot(contains('Clarifying question')));
+    },
+  );
+
   test('a waiting exchange becomes noAnswer after the timeout', () async {
     final replyCompleter = Completer<String>();
     final controller = ChatController(

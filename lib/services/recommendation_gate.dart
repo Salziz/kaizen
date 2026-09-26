@@ -11,22 +11,30 @@ class GateResult {
   bool get canRecommend => verdict == GateVerdict.enough;
 }
 
-/// Evaluates whether the extracted project state has enough information to
-/// generate a recommendation, without making a network or model call.
+/// Pure policy check for the facts extracted from a project description.
 ///
-/// The extractor must preserve unknown values as null rather than guessing;
-/// this gate cannot distinguish a guessed value from one stated by the user.
+/// The extractor must preserve unknown values as null or empty rather than
+/// guessing. A project category alone is not enough: a budget, platform, or
+/// feature is also required to make the resulting shortlist meaningfully
+/// tailored.
 GateResult evaluateRecommendationGate(ProjectState state) {
+  final missing = <String>[];
   final hasProjectType =
       state.projectType != null && state.projectType!.trim().isNotEmpty;
   if (!hasProjectType) {
-    return const GateResult(
-      verdict: GateVerdict.notEnough,
-      missing: ['projectType'],
-    );
+    missing.add('projectType');
   }
 
-  // AC01 requires minimal concrete descriptions to pass. Budget, platforms,
-  // and features can inform recommendations but are not gate requirements.
+  final hasAnyConstraint =
+      (state.budget?.isValid ?? false) ||
+      state.platforms.any((value) => value.trim().isNotEmpty) ||
+      state.features.any((value) => value.trim().isNotEmpty);
+  if (hasProjectType && !hasAnyConstraint) {
+    missing.add('constraint');
+  }
+
+  if (missing.isNotEmpty) {
+    return GateResult(verdict: GateVerdict.notEnough, missing: missing);
+  }
   return const GateResult(verdict: GateVerdict.enough);
 }
