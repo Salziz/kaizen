@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 
 import '../models/project_state.dart';
 import 'shortlist_generator.dart';
+import 'tool_price_catalogue.dart';
 
 class GroqReplyService {
   GroqReplyService({
@@ -54,9 +55,13 @@ class GroqReplyService {
                 'currency string, and hard boolean, or null), platforms '
                 '(array of strings), and features (array of strings). Use '
                 'null for unstated projectType or budget and empty arrays '
-                'for unstated platforms or features. If the user says only '
-                'that tools must be free, record that phrase as a feature '
-                'constraint; do not invent a currency or numeric budget.',
+                'for unstated platforms or features. If the user says tools '
+                'must be free, or otherwise states a hard zero-cost '
+                'requirement without a numeric figure, record budget as '
+                'amount 0, currency "USD" unless another currency was stated, '
+                'and hard true. A stated free constraint is a budget, not a '
+                'feature. Leave budget null only when no cost constraint was '
+                'mentioned.',
           },
           {'role': 'user', 'content': prompt},
         ],
@@ -109,6 +114,9 @@ class GroqReplyService {
     }
 
     final projectState = ProjectState.fromJson(envelope);
-    return generateShortlist(projectState).toReplyText();
+    return generateShortlist(
+      projectState,
+      priceEstimates: kToolPriceCatalogue,
+    ).toReplyText();
   }
 }

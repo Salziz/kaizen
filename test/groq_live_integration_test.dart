@@ -30,4 +30,25 @@ void main() {
         ? 'Set GROQ_LIVE_TEST_KEY at test runtime to enable this live API check.'
         : false,
   );
+
+  test(
+    'real Groq extracts a free-only constraint as a zero hard budget',
+    () async {
+      final service = GroqReplyService(apiKey: apiKey);
+
+      final reply = await service
+          .generateReply(
+            'I am building a small online storefront. Only free tools, please.',
+          )
+          .timeout(const Duration(seconds: 60));
+
+      expect(reply, contains('hard cap of USD 0'));
+      expect(reply, contains('fits within'));
+      expect(reply, contains('exceeds'));
+      expect(reply, contains('Shopify'));
+    },
+    skip: apiKey.isEmpty
+        ? 'Set GROQ_LIVE_TEST_KEY at test runtime to enable this live API check.'
+        : false,
+  );
 }

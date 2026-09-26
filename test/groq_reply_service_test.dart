@@ -52,7 +52,44 @@ void main() {
         systemMessage['content'],
         contains('do not infer missing details'),
       );
+      expect(
+        systemMessage['content'],
+        contains('A stated free constraint is a budget, not a feature'),
+      );
       expect(request['response_format'], {'type': 'json_object'});
+    },
+  );
+
+  test(
+    'a free-only budget is extracted and compared against the catalogue',
+    () async {
+      final client = _FakeClient(
+        http.Response(
+          jsonEncode({
+            'choices': [
+              {
+                'message': {
+                  'content': jsonEncode({
+                    'projectType': 'small storefront',
+                    'budget': {'amount': 0, 'currency': 'USD', 'hard': true},
+                    'platforms': [],
+                    'features': [],
+                  }),
+                },
+              },
+            ],
+          }),
+          200,
+        ),
+      );
+      final service = GroqReplyService(apiKey: 'test-key', client: client);
+
+      final reply = await service.generateReply('Only free tools, please.');
+
+      expect(reply, contains('Budget: Estimated at USD 29/month'));
+      expect(reply, contains('exceeds your hard cap of USD 0'));
+      expect(reply, contains('fits within your hard cap of USD 0'));
+      expect(reply, isNot(contains('is unverified')));
     },
   );
 

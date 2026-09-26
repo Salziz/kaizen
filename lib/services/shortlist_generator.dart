@@ -71,9 +71,8 @@ class ShortlistResult {
 }
 
 /// Produces a small, deterministic starter shortlist from explicit project
-/// facts. It deliberately does not claim current prices or that options fit a
-/// hard cap; those require live pricing data, which this pure function does
-/// not have.
+/// facts. Optional price estimates support fit/break comparisons, but are not
+/// live pricing and must be verified before users rely on them.
 ShortlistResult generateShortlist(
   ProjectState state, {
   Map<String, ToolPriceEstimate> priceEstimates = const {},
