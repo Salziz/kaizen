@@ -92,6 +92,8 @@ void main() {
           monthlyAmount: name == 'Shopify' ? 29 : 5,
           currency: 'USD',
           basis: 'test estimate',
+          sourceUrl: 'https://example.com/pricing',
+          lastChecked: '2026-09-26',
         ),
     };
 

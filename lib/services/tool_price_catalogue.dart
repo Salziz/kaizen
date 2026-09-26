@@ -1,50 +1,65 @@
 import 'shortlist_generator.dart';
 
-/// Rough monthly estimates used to make budget fit/break comparisons
-/// reachable. These are not live-verified; generated replies tell users to
-/// confirm current provider pricing before committing.
-///
-/// TODO: Track a source and verification date for each entry before relying on
-/// these estimates as current prices.
-final Map<String, ToolPriceEstimate> kToolPriceCatalogue = {
-  'Supabase': const ToolPriceEstimate(
+/// Rough monthly estimates reviewed against provider pricing pages on
+/// 2026-09-26. They are not quotes; replies include the source and review date.
+/// Variable and cross-currency pricing is explicitly excluded from fit/break
+/// verdicts unless the total can be compared without inference.
+const Map<String, ToolPriceEstimate> kToolPriceCatalogue = {
+  'Supabase': ToolPriceEstimate(
     monthlyAmount: 0,
     currency: 'USD',
     basis: 'Free tier - 500MB database, 50K monthly active users',
+    sourceUrl: 'https://supabase.com/pricing',
+    lastChecked: '2026-09-26',
   ),
-  'Firebase': const ToolPriceEstimate(
+  'Firebase': ToolPriceEstimate(
     monthlyAmount: 0,
     currency: 'USD',
     basis: 'Spark (free) plan - capped usage, no billing required',
+    sourceUrl: 'https://firebase.google.com/pricing',
+    lastChecked: '2026-09-26',
   ),
-  'Vercel': const ToolPriceEstimate(
+  'Vercel': ToolPriceEstimate(
     monthlyAmount: 0,
     currency: 'USD',
     basis: 'Hobby plan - free for non-commercial/small projects',
+    sourceUrl: 'https://vercel.com/pricing',
+    lastChecked: '2026-09-26',
   ),
-  'Stripe': const ToolPriceEstimate(
+  'Stripe': ToolPriceEstimate(
     monthlyAmount: 0,
     currency: 'USD',
-    basis: 'No fixed monthly fee - 2.9% + 30 cents per transaction only',
+    basis: 'No fixed monthly fee; US domestic online card pricing',
+    sourceUrl: 'https://stripe.com/pricing',
+    lastChecked: '2026-09-26',
+    variablePricing: '2.9% + 30 cents per transaction',
   ),
-  'Shopify': const ToolPriceEstimate(
+  'Shopify': ToolPriceEstimate(
     monthlyAmount: 29,
     currency: 'USD',
     basis: 'Basic plan starting price',
+    sourceUrl: 'https://www.shopify.com/pricing',
+    lastChecked: '2026-09-26',
   ),
-  'Sentry': const ToolPriceEstimate(
+  'Sentry': ToolPriceEstimate(
     monthlyAmount: 0,
     currency: 'USD',
     basis: 'Free developer plan - 5K events/month',
+    sourceUrl: 'https://sentry.io/pricing/',
+    lastChecked: '2026-09-26',
   ),
-  'Unity Gaming Services': const ToolPriceEstimate(
+  'Unity Gaming Services': ToolPriceEstimate(
     monthlyAmount: 0,
     currency: 'USD',
     basis: 'Free tier for small/indie projects',
+    sourceUrl: 'https://unity.com/solutions/gaming-services/pricing',
+    lastChecked: '2026-09-26',
   ),
-  'Stream Chat': const ToolPriceEstimate(
+  'Stream Chat': ToolPriceEstimate(
     monthlyAmount: 99,
     currency: 'USD',
     basis: 'Maker plan starting price - no free production tier',
+    sourceUrl: 'https://getstream.io/chat/pricing/',
+    lastChecked: '2026-09-26',
   ),
 };

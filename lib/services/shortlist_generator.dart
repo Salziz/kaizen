@@ -22,11 +22,17 @@ class ToolPriceEstimate {
     required this.monthlyAmount,
     required this.currency,
     required this.basis,
+    required this.sourceUrl,
+    required this.lastChecked,
+    this.variablePricing,
   });
 
   final double monthlyAmount;
   final String currency;
   final String basis;
+  final String sourceUrl;
+  final String lastChecked;
+  final String? variablePricing;
 }
 
 class ShortlistResult {
@@ -196,12 +202,39 @@ String _budgetAssessment({
   if (estimate == null ||
       !estimate.monthlyAmount.isFinite ||
       estimate.monthlyAmount < 0 ||
+      estimate.currency.trim().isEmpty ||
       estimate.basis.trim().isEmpty ||
-      estimate.currency.toUpperCase() != budget.currency.toUpperCase()) {
+      estimate.sourceUrl.trim().isEmpty ||
+      estimate.lastChecked.trim().isEmpty ||
+      (estimate.variablePricing != null &&
+          estimate.variablePricing!.trim().isEmpty)) {
     return 'Your ${budget.hard ? 'hard cap' : 'target budget'} of '
         '${budget.currency} ${_formatAmount(budget.amount)}. This tool’s '
-        'current price is unverified, so whether it fits or exceeds that '
-        'budget is unknown.';
+        'price and its source or check date are unavailable, so whether it '
+        'fits or exceeds that budget is unknown.';
+  }
+
+  final provenance =
+      'Pricing source: ${estimate.sourceUrl} (checked ${estimate.lastChecked}).';
+  final limitations = <String>[];
+  if (estimate.currency.toUpperCase() != budget.currency.toUpperCase()) {
+    limitations.add(
+      'the currencies cannot be compared without an exchange rate; no '
+      'conversion was applied',
+    );
+  }
+  if (estimate.variablePricing case final variablePricing?) {
+    limitations.add(
+      'additional variable charges apply ($variablePricing), so total cost '
+      'cannot be determined from the monthly budget alone',
+    );
+  }
+  if (limitations.isNotEmpty) {
+    return 'The listed fixed monthly component is ${estimate.currency} '
+        '${_formatAmount(estimate.monthlyAmount)}/month (${estimate.basis}); '
+        '${limitations.join('; ')}. Whether this fits your '
+        '${budget.hard ? 'hard cap' : 'target budget'} of ${budget.currency} '
+        '${_formatAmount(budget.amount)} is unknown. $provenance';
   }
 
   final fits = estimate.monthlyAmount <= budget.amount;
@@ -210,7 +243,7 @@ String _budgetAssessment({
   return 'Estimated at ${estimate.currency} '
       '${_formatAmount(estimate.monthlyAmount)}/month (${estimate.basis}); '
       'this $fitDescription your $budgetType of ${budget.currency} '
-      '${_formatAmount(budget.amount)}. Verify current provider pricing.';
+      '${_formatAmount(budget.amount)}. $provenance';
 }
 
 List<ToolRecommendation> _recommendationsFor({
