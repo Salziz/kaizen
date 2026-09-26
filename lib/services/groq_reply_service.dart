@@ -2,6 +2,10 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import '../models/project_state.dart';
+import 'shortlist_generator.dart';
+import 'tool_price_catalogue.dart';
+
 class GroqReplyService {
   GroqReplyService({
     required this.apiKey,
@@ -41,8 +45,27 @@ class GroqReplyService {
       body: jsonEncode({
         'model': model,
         'messages': [
+          {
+            'role': 'system',
+            'content':
+                'Extract only facts the user explicitly stated about their '
+                'project. Do not recommend tools and do not infer missing '
+                'details. Return one JSON object with keys projectType '
+                '(string or null), budget (object with numeric amount, '
+                'currency string, and hard boolean, or null), platforms '
+                '(array of strings), and features (array of strings). Use '
+                'null for unstated projectType or budget and empty arrays '
+                'for unstated platforms or features. If the user says tools '
+                'must be free, or otherwise states a hard zero-cost '
+                'requirement without a numeric figure, record budget as '
+                'amount 0, currency "USD" unless another currency was stated, '
+                'and hard true. A stated free constraint is a budget, not a '
+                'feature. Leave budget null only when no cost constraint was '
+                'mentioned.',
+          },
           {'role': 'user', 'content': prompt},
         ],
+        'response_format': {'type': 'json_object'},
       }),
     );
 
@@ -54,17 +77,46 @@ class GroqReplyService {
       );
     }
 
-    final decoded = jsonDecode(response.body) as Map<String, dynamic>;
-    final choices = decoded['choices'] as List<dynamic>?;
-    final firstChoice = choices == null || choices.isEmpty
-        ? null
-        : choices.first as Map<String, dynamic>;
-    final message = firstChoice?['message'] as Map<String, dynamic>?;
-    final text = message?['content'] as String?;
-
-    if (text == null || text.isEmpty) {
+    final Object? decodedResponse;
+    try {
+      decodedResponse = jsonDecode(response.body);
+    } on FormatException catch (error) {
+      throw StateError('Groq returned invalid response JSON: ${error.message}');
+    }
+    if (decodedResponse is! Map<String, dynamic>) {
+      throw StateError('Groq returned a response that was not a JSON object.');
+    }
+    final choices = decodedResponse['choices'];
+    if (choices is! List || choices.isEmpty || choices.first is! Map) {
+      throw StateError('Groq returned no valid completion choice.');
+    }
+    final message = choices.first['message'];
+    if (message is! Map || message['content'] is! String) {
+      throw StateError('Groq returned a completion without text content.');
+    }
+    final text = message['content'] as String;
+    if (text.trim().isEmpty) {
       throw StateError('Groq returned no text content.');
     }
-    return text;
+
+    final Object? envelope;
+    try {
+      envelope = jsonDecode(text);
+    } on FormatException catch (error) {
+      throw StateError(
+        'Groq returned invalid project facts JSON: ${error.message}',
+      );
+    }
+    if (envelope is! Map<String, dynamic>) {
+      throw StateError(
+        'Groq returned project facts that were not a JSON object.',
+      );
+    }
+
+    final projectState = ProjectState.fromJson(envelope);
+    return generateShortlist(
+      projectState,
+      priceEstimates: kToolPriceCatalogue,
+    ).toReplyText();
   }
 }

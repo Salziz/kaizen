@@ -11,12 +11,12 @@ Describe your app — by typing or by voice — and Kaizen recommends the tools 
 ## Core feature: Tool & Cost Recommendation
 
 1. **Describe your project.** Use the chat interface or voice input to explain what you're building — the kind of app, the core features, your constraints (budget, timeline, team size).
-2. **Get a tailored tool shortlist.** Kaizen analyzes your description and surfaces the tools genuinely suited to your goals — not a generic "best of" list. Each suggestion comes with its strengths and weaknesses laid out plainly, so you understand the tradeoff, not just the name.
+2. **Get a tailored tool shortlist.** Kaizen extracts only stated project facts, asks for a project type and at least one constraint (budget, platform, or feature) when either is missing, then returns three to six options with project-specific fit and tradeoffs. Each option reports budget fit when a price estimate is available; otherwise it explicitly marks fit as unverified. The starter catalogue does not check live prices or guarantee that a tool fits a hard cap.
 3. **Ask follow-up questions.** Not sure why a tool was recommended, or how it stacks up against an alternative for your specific use case? Ask directly inside the flow — Kaizen explains what makes each option particularly suited (or unsuited) to what you're trying to build.
-4. **Select and estimate.** Choose the tools you want to move forward with, and get an upfront cost estimate for the project as a whole — built from real pricing on the selected tools, not a rough guess.
+4. **Select and estimate.** Choose the tools you want to move forward with. Live, verified cost estimates are a later step; review provider pricing before committing to a budget.
 5. **Share and go.** Once your stack is locked in, share the project setup forward to start building.
 
-The goal is simple: walk in with an idea, walk out with a tool stack and a number, in one sitting.
+The goal is simple: walk in with an idea, walk out with a tailored starter stack and a clear next step on costs.
 
 ## Local Groq configuration
 
