@@ -117,13 +117,19 @@ void main() {
     test('parses a budget-bearing envelope correctly', () {
       final state = ProjectState.fromJson({
         'projectType': 'small storefront',
-        'budget': {'amount': 50, 'currency': 'USD', 'hard': true},
+        'budget': {
+          'amount': 50,
+          'currency': 'USD',
+          'hard': true,
+          'period': 'monthly',
+        },
         'platforms': ['ios', 'android'],
         'features': ['product list', 'cart', 'checkout'],
       });
       expect(state.projectType, 'small storefront');
       expect(state.budget?.amount, 50);
       expect(state.budget?.hard, isTrue);
+      expect(state.budget?.period, BudgetPeriod.monthly);
       expect(state.platforms, ['ios', 'android']);
       expect(state.features, ['product list', 'cart', 'checkout']);
     });
@@ -169,10 +175,24 @@ void main() {
       },
     );
 
+    test('missing budget period remains unspecified', () {
+      final state = ProjectState.fromJson({
+        'projectType': 'chat app',
+        'budget': {'amount': 50, 'currency': 'USD', 'hard': true},
+      });
+
+      expect(state.budget?.period, BudgetPeriod.unspecified);
+    });
+
     test('serializes and parses its valid state', () {
       const state = ProjectState(
         projectType: 'chat app',
-        budget: Budget(amount: 50, currency: 'USD', hard: true),
+        budget: Budget(
+          amount: 50,
+          currency: 'USD',
+          hard: true,
+          period: BudgetPeriod.monthly,
+        ),
         platforms: ['android'],
         features: ['group messaging'],
       );
@@ -182,6 +202,7 @@ void main() {
       expect(restored.budget?.amount, state.budget?.amount);
       expect(restored.budget?.currency, state.budget?.currency);
       expect(restored.budget?.hard, state.budget?.hard);
+      expect(restored.budget?.period, state.budget?.period);
       expect(restored.platforms, state.platforms);
       expect(restored.features, state.features);
     });

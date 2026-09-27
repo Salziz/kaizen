@@ -56,6 +56,12 @@ void main() {
         systemMessage['content'],
         contains('A stated free constraint is a budget, not a feature'),
       );
+      expect(
+        systemMessage['content'],
+        contains(
+          'Record period "monthly" or "total" only when explicitly stated',
+        ),
+      );
       expect(request['response_format'], {'type': 'json_object'});
     },
   );
@@ -71,7 +77,12 @@ void main() {
                 'message': {
                   'content': jsonEncode({
                     'projectType': 'small storefront',
-                    'budget': {'amount': 0, 'currency': 'USD', 'hard': true},
+                    'budget': {
+                      'amount': 0,
+                      'currency': 'USD',
+                      'hard': true,
+                      'period': 'unspecified',
+                    },
                     'platforms': [],
                     'features': [],
                   }),
@@ -86,10 +97,10 @@ void main() {
 
       final reply = await service.generateReply('Only free tools, please.');
 
-      expect(reply, contains('Budget: Estimated at USD 29/month'));
+      expect(reply, contains('Budget: This tool has a listed fixed component'));
       expect(reply, contains('exceeds your hard cap of USD 0'));
-      expect(reply, contains('fits within your hard cap of USD 0'));
-      expect(reply, isNot(contains('is unverified')));
+      expect(reply, contains('Variable charges apply'));
+      expect(reply, isNot(contains('fits within your hard cap of USD 0')));
     },
   );
 

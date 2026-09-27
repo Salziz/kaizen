@@ -62,17 +62,15 @@ void main() {
     expect(result.canRecommend, isTrue);
     expect(result.recommendations.length, inInclusiveRange(3, 6));
     expect(result.budgetAcknowledgment, contains('hard cap of USD 0'));
-    expect(
-      result.budgetAcknowledgment,
-      contains('not verified against live pricing'),
-    );
+    expect(result.budgetAcknowledgment, contains('not live quotes'));
     expect(validateShortlist(result), isEmpty);
     expect(result.recommendations.any((item) => item.name == 'Stripe'), isTrue);
     expect(
       result.recommendations.every(
         (item) =>
             item.budgetAssessment.contains('hard cap of USD 0') &&
-            item.budgetAssessment.contains('fits or exceeds'),
+            (item.budgetAssessment.contains('unknown') ||
+                item.budgetAssessment.contains('exceeds')),
       ),
       isTrue,
     );
@@ -81,7 +79,12 @@ void main() {
   test('per-tool budget assessments distinguish fits from breaks', () {
     final state = const ProjectState(
       projectType: 'small online store',
-      budget: Budget(amount: 10, currency: 'USD', hard: true),
+      budget: Budget(
+        amount: 10,
+        currency: 'USD',
+        hard: true,
+        period: BudgetPeriod.monthly,
+      ),
     );
     final names = generateShortlist(
       state,
@@ -108,13 +111,185 @@ void main() {
     );
     expect(
       result.recommendations
+          .singleWhere((item) => item.name == 'Shopify')
+          .budgetAssessment,
+      contains('exceeds your hard cap per month'),
+    );
+    expect(
+      result.recommendations
           .where((item) => item.name != 'Shopify')
-          .every((item) => item.budgetAssessment.contains('fits within')),
+          .every(
+            (item) =>
+                item.budgetAssessment.contains('fits within') ||
+                item.budgetAssessment.contains('fixed monthly component'),
+          ),
       isTrue,
     );
     expect(
+      result.toReplyText(),
+      contains('fixed monthly cost would total USD 44'),
+    );
+    expect(result.toReplyText(), contains('exceeds your hard cap per month'));
+    expect(
       result.toReplyText().split('Budget:'),
       hasLength(result.recommendations.length + 1),
+    );
+  });
+
+  test('total budgets compare only with a matching total-cost horizon', () {
+    const state = ProjectState(
+      projectType: 'small online store',
+      budget: Budget(
+        amount: 50,
+        currency: 'USD',
+        hard: true,
+        period: BudgetPeriod.total,
+      ),
+    );
+    final estimates = {
+      for (final name in ['Shopify', 'Stripe', 'Supabase', 'Vercel'])
+        name: ToolPriceEstimate(
+          monthlyAmount: switch (name) {
+            'Shopify' => 29,
+            'Stripe' => 10,
+            'Supabase' => 10,
+            _ => 15,
+          },
+          currency: 'USD',
+          basis: 'test estimate',
+          sourceUrl: 'https://example.com/$name',
+          lastChecked: '2026-09-26',
+        ),
+    };
+
+    final result = generateShortlist(state, priceEstimates: estimates);
+
+    expect(
+      result.recommendations.every(
+        (item) =>
+            item.budgetAssessment.contains(
+              'one month of all listed fixed costs exceeds',
+            ) ||
+            item.budgetAssessment.contains('project duration is unstated'),
+      ),
+      isTrue,
+    );
+  });
+
+  test('monthly budget compares the summed listed monthly fixed costs', () {
+    const state = ProjectState(
+      projectType: 'small online store',
+      budget: Budget(
+        amount: 50,
+        currency: 'USD',
+        hard: true,
+        period: BudgetPeriod.monthly,
+      ),
+    );
+    const estimates = {
+      'Shopify': ToolPriceEstimate(
+        monthlyAmount: 29,
+        currency: 'USD',
+        basis: 'test estimate',
+        sourceUrl: 'https://example.com/shopify',
+        lastChecked: '2026-09-26',
+      ),
+      'Stripe': ToolPriceEstimate(
+        monthlyAmount: 10,
+        currency: 'USD',
+        basis: 'test estimate',
+        sourceUrl: 'https://example.com/stripe',
+        lastChecked: '2026-09-26',
+      ),
+      'Vercel': ToolPriceEstimate(
+        monthlyAmount: 5,
+        currency: 'USD',
+        basis: 'test estimate',
+        sourceUrl: 'https://example.com/vercel',
+        lastChecked: '2026-09-26',
+      ),
+      'Supabase': ToolPriceEstimate(
+        monthlyAmount: 5,
+        currency: 'USD',
+        basis: 'test estimate',
+        sourceUrl: 'https://example.com/supabase',
+        lastChecked: '2026-09-26',
+      ),
+    };
+
+    final result = generateShortlist(state, priceEstimates: estimates);
+
+    expect(
+      result.recommendations.every(
+        (item) =>
+            item.budgetAssessment.contains(
+              'fixed monthly cost would total USD 49',
+            ) &&
+            item.budgetAssessment.contains('fits within') &&
+            item.budgetAssessment.contains(
+              'some recommendations may be alternatives',
+            ),
+      ),
+      isTrue,
+    );
+  });
+
+  test('unspecified budget period does not compare recurring prices', () {
+    const state = ProjectState(
+      projectType: 'small online store',
+      budget: Budget(amount: 50, currency: 'USD', hard: true),
+    );
+    final estimates = {
+      'Shopify': const ToolPriceEstimate(
+        monthlyAmount: 29,
+        currency: 'USD',
+        basis: 'test estimate',
+        sourceUrl: 'https://example.com/shopify',
+        lastChecked: '2026-09-26',
+      ),
+      'Stripe': const ToolPriceEstimate(
+        monthlyAmount: 0,
+        currency: 'USD',
+        basis: 'test estimate',
+        sourceUrl: 'https://example.com/stripe',
+        lastChecked: '2026-09-26',
+        variablePricing: 'transaction fees',
+      ),
+      'Supabase': const ToolPriceEstimate(
+        monthlyAmount: 5,
+        currency: 'USD',
+        basis: 'test estimate',
+        sourceUrl: 'https://example.com/supabase',
+        lastChecked: '2026-09-26',
+      ),
+      'Vercel': const ToolPriceEstimate(
+        monthlyAmount: 0,
+        currency: 'USD',
+        basis: 'test estimate',
+        sourceUrl: 'https://example.com/vercel',
+        lastChecked: '2026-09-26',
+      ),
+    };
+
+    final result = generateShortlist(state, priceEstimates: estimates);
+
+    expect(
+      result.recommendations
+          .singleWhere((item) => item.name == 'Shopify')
+          .budgetAssessment,
+      contains('period was not stated'),
+    );
+    expect(
+      result.recommendations
+          .singleWhere((item) => item.name == 'Stripe')
+          .budgetAssessment,
+      contains('period was not stated'),
+    );
+    expect(
+      result.recommendations
+          .singleWhere((item) => item.name == 'Vercel')
+          .budgetAssessment,
+      contains('fits your'),
     );
   });
 

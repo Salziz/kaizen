@@ -48,6 +48,7 @@ class Budget {
   final double amount;
   final String currency;
   final bool hard;
+  final BudgetPeriod period;
 
   bool get isValid =>
       amount >= 0 && amount.isFinite && currency.trim().isNotEmpty;
@@ -56,6 +57,7 @@ class Budget {
     required this.amount,
     required this.currency,
     required this.hard,
+    this.period = BudgetPeriod.unspecified,
   });
 
   factory Budget.fromJson(Map<String, dynamic> json) {
@@ -78,6 +80,7 @@ class Budget {
     final rawAmount = value['amount'];
     final rawCurrency = value['currency'];
     final rawHard = value['hard'];
+    final rawPeriod = value['period'];
     if (rawAmount is! num ||
         !rawAmount.toDouble().isFinite ||
         rawAmount < 0 ||
@@ -91,6 +94,10 @@ class Budget {
       amount: rawAmount.toDouble(),
       currency: rawCurrency.trim(),
       hard: rawHard,
+      period: BudgetPeriod.values.firstWhere(
+        (period) => period.name == rawPeriod,
+        orElse: () => BudgetPeriod.unspecified,
+      ),
     );
   }
 
@@ -98,5 +105,8 @@ class Budget {
     'amount': amount,
     'currency': currency,
     'hard': hard,
+    'period': period.name,
   };
 }
+
+enum BudgetPeriod { monthly, total, unspecified }

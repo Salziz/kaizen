@@ -2,8 +2,10 @@ import 'shortlist_generator.dart';
 
 /// Rough monthly estimates reviewed against provider pricing pages on
 /// 2026-09-26. They are not quotes; replies include the source and review date.
-/// Variable and cross-currency pricing is explicitly excluded from fit/break
-/// verdicts unless the total can be compared without inference.
+/// Amounts are USD. A non-USD budget gets a fit/break verdict only when no
+/// exchange rate is required (zero listed fixed cost, or a zero cap against a
+/// strictly positive listed cost or positive variable fee). Variable fees are
+/// otherwise unknown unless the stated cap itself settles the comparison.
 const Map<String, ToolPriceEstimate> kToolPriceCatalogue = {
   'Supabase': ToolPriceEstimate(
     monthlyAmount: 0,

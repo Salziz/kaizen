@@ -52,16 +52,19 @@ class GroqReplyService {
                 'project. Do not recommend tools and do not infer missing '
                 'details. Return one JSON object with keys projectType '
                 '(string or null), budget (object with numeric amount, '
-                'currency string, and hard boolean, or null), platforms '
-                '(array of strings), and features (array of strings). Use '
+                'currency string, hard boolean, and period "monthly", '
+                '"total", or "unspecified", or null), platforms (array of '
+                'strings), and features (array of strings). Use '
                 'null for unstated projectType or budget and empty arrays '
                 'for unstated platforms or features. If the user says tools '
                 'must be free, or otherwise states a hard zero-cost '
                 'requirement without a numeric figure, record budget as '
                 'amount 0, currency "USD" unless another currency was stated, '
-                'and hard true. A stated free constraint is a budget, not a '
-                'feature. Leave budget null only when no cost constraint was '
-                'mentioned.',
+                'hard true, and period "unspecified". A stated free '
+                'constraint is a budget, not a feature. Record period '
+                '"monthly" or "total" only when explicitly stated; otherwise '
+                'use "unspecified". Leave budget null only when no cost '
+                'constraint was mentioned.',
           },
           {'role': 'user', 'content': prompt},
         ],

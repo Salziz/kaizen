@@ -25,6 +25,7 @@ void main() {
       expect(normalizedReply, contains('realtime group messaging'));
       expect(reply, contains('hard cap'));
       expect(reply, contains('25'));
+      expect(reply, contains('per month'));
     },
     skip: apiKey.isEmpty
         ? 'Set GROQ_LIVE_TEST_KEY at test runtime to enable this live API check.'
@@ -43,8 +44,8 @@ void main() {
           .timeout(const Duration(seconds: 60));
 
       expect(reply, contains('hard cap of USD 0'));
-      expect(reply, contains('fits within'));
       expect(reply, contains('exceeds'));
+      expect(reply, contains('Variable charges apply'));
       expect(reply, contains('Shopify'));
     },
     skip: apiKey.isEmpty

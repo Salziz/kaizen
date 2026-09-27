@@ -94,6 +94,10 @@ ShortlistResult generateShortlist(
   final candidates = enforceShortlistBounds(
     _recommendationsFor(projectType: projectType, context: context),
   );
+  final combinedMonthlyCosts = _combinedMonthlyCosts(
+    candidates,
+    priceEstimates,
+  );
   final recommendations = candidates
       .map((recommendation) {
         return ToolRecommendation(
@@ -106,6 +110,7 @@ ShortlistResult generateShortlist(
           budgetAssessment: _budgetAssessment(
             budget: budget,
             estimate: priceEstimates[recommendation.name],
+            combinedMonthlyCosts: combinedMonthlyCosts,
           ),
         );
       })
@@ -194,6 +199,7 @@ List<String> validateShortlist(ShortlistResult result) {
 String _budgetAssessment({
   required Budget? budget,
   required ToolPriceEstimate? estimate,
+  required _CombinedMonthlyCosts? combinedMonthlyCosts,
 }) {
   if (budget == null) {
     return 'No usable budget was stated; current pricing and budget fit have '
@@ -216,34 +222,175 @@ String _budgetAssessment({
 
   final provenance =
       'Pricing source: ${estimate.sourceUrl} (checked ${estimate.lastChecked}).';
-  final limitations = <String>[];
-  if (estimate.currency.toUpperCase() != budget.currency.toUpperCase()) {
-    limitations.add(
-      'the currencies cannot be compared without an exchange rate; no '
-      'conversion was applied',
-    );
-  }
-  if (estimate.variablePricing case final variablePricing?) {
-    limitations.add(
-      'additional variable charges apply ($variablePricing), so total cost '
-      'cannot be determined from the monthly budget alone',
-    );
-  }
-  if (limitations.isNotEmpty) {
-    return 'The listed fixed monthly component is ${estimate.currency} '
-        '${_formatAmount(estimate.monthlyAmount)}/month (${estimate.basis}); '
-        '${limitations.join('; ')}. Whether this fits your '
-        '${budget.hard ? 'hard cap' : 'target budget'} of ${budget.currency} '
-        '${_formatAmount(budget.amount)} is unknown. $provenance';
+  final toolPrice =
+      'This tool has a listed fixed component of '
+      '${estimate.currency} ${_formatAmount(estimate.monthlyAmount)}/month '
+      '(${estimate.basis}).';
+  final sameCurrency =
+      estimate.currency.toUpperCase() == budget.currency.toUpperCase();
+  final hasVariablePricing = estimate.variablePricing != null;
+  final zeroCapHasKnownCost =
+      budget.amount == 0 && (estimate.monthlyAmount > 0 || hasVariablePricing);
+
+  if (zeroCapHasKnownCost) {
+    final reason = hasVariablePricing
+        ? 'variable charges are positive for any charged transaction'
+        : 'its known recurring cost is positive';
+    return '$toolPrice This tool exceeds your ${_budgetLabel(budget)} of '
+        '${budget.currency} 0 because $reason.'
+        '${hasVariablePricing ? ' Variable charges apply (${estimate.variablePricing}).' : ''} '
+        '$provenance';
   }
 
-  final fits = estimate.monthlyAmount <= budget.amount;
-  final fitDescription = fits ? 'fits within' : 'exceeds';
-  final budgetType = budget.hard ? 'hard cap' : 'target budget';
-  return 'Estimated at ${estimate.currency} '
-      '${_formatAmount(estimate.monthlyAmount)}/month (${estimate.basis}); '
-      'this $fitDescription your $budgetType of ${budget.currency} '
-      '${_formatAmount(budget.amount)}. $provenance';
+  if (!sameCurrency) {
+    if (estimate.monthlyAmount == 0 && !hasVariablePricing) {
+      // Zero in the estimate's currency is zero in any currency — no
+      // exchange rate is needed to know that a genuinely free fixed
+      // cost fits a positive budget stated in a different currency.
+      return '$toolPrice Its listed fixed price is zero, which fits your '
+          '${_budgetLabel(budget)} of ${budget.currency} '
+          '${_formatAmount(budget.amount)} regardless of currency — a zero '
+          'cost converts to zero in any currency. Unlisted usage charges are '
+          'not included. $provenance';
+    }
+    return '$toolPrice The currencies cannot be compared without an exchange '
+        'rate; no conversion was applied, so whether this fits your '
+        '${_budgetLabel(budget)} of ${budget.currency} '
+        '${_formatAmount(budget.amount)} is unknown.'
+        '${hasVariablePricing ? ' Variable charges apply (${estimate.variablePricing}).' : ''} '
+        '$provenance';
+  }
+
+  if (budget.period == BudgetPeriod.monthly) {
+    final fitsFixed = estimate.monthlyAmount <= budget.amount;
+    if (hasVariablePricing) {
+      final fixedStatus = fitsFixed
+          ? 'its fixed monthly component fits within'
+          : 'its fixed monthly component exceeds';
+      return '$toolPrice The fixed component $fixedStatus your '
+          '${_budgetLabel(budget)} of ${budget.currency} '
+          '${_formatAmount(budget.amount)}, but additional variable charges '
+          'apply (${estimate.variablePricing}), so total fit is unknown. '
+          '$provenance';
+    }
+    final verdict = fitsFixed ? 'fits within' : 'exceeds';
+    final stackNote =
+        combinedMonthlyCosts == null ||
+            combinedMonthlyCosts.currency.toUpperCase() !=
+                budget.currency.toUpperCase()
+        ? ''
+        : ' If you used every listed option together, their fixed monthly '
+              'cost would total ${combinedMonthlyCosts.currency} '
+              '${_formatAmount(combinedMonthlyCosts.fixedAmount)}, which '
+              '${combinedMonthlyCosts.fixedAmount <= budget.amount ? 'fits within' : 'exceeds'} '
+              'your ${_budgetLabel(budget)}; some recommendations may be '
+              'alternatives.';
+    return '$toolPrice This tool $verdict your ${_budgetLabel(budget)} of '
+        '${budget.currency} ${_formatAmount(budget.amount)}.$stackNote '
+        '$provenance';
+  }
+
+  if (budget.period == BudgetPeriod.total) {
+    final stackCostNote = combinedMonthlyCosts == null
+        ? ''
+        : ' If every listed option were used together, their fixed costs '
+              'would total ${combinedMonthlyCosts.currency} '
+              '${_formatAmount(combinedMonthlyCosts.fixedAmount)} for one '
+              'month; some recommendations may be alternatives.';
+    if (estimate.monthlyAmount > budget.amount) {
+      return '$toolPrice Even one month of this tool exceeds your '
+          '${_budgetLabel(budget)} of ${budget.currency} '
+          '${_formatAmount(budget.amount)}.$stackCostNote $provenance';
+    }
+    if (combinedMonthlyCosts != null &&
+        combinedMonthlyCosts.currency.toUpperCase() ==
+            budget.currency.toUpperCase() &&
+        combinedMonthlyCosts.fixedAmount > budget.amount) {
+      return '$toolPrice $stackCostNote Even one month of all listed fixed '
+          'costs exceeds your ${_budgetLabel(budget)} of ${budget.currency} '
+          '${_formatAmount(budget.amount)}; for a subset or alternatives, '
+          'duration is needed to assess total cost. $provenance';
+    }
+    if (estimate.monthlyAmount == 0 && !hasVariablePricing) {
+      return '$toolPrice The listed recurring fixed cost fits within your '
+          '${_budgetLabel(budget)} of ${budget.currency} '
+          '${_formatAmount(budget.amount)}; unlisted usage charges are not '
+          'included. $provenance';
+    }
+    return '$toolPrice Its monthly fixed cost is below your total budget, '
+        'but project duration is unstated, so total fit is unknown.'
+        '$stackCostNote'
+        '${hasVariablePricing ? ' Variable charges apply (${estimate.variablePricing}).' : ''} '
+        '$provenance';
+  }
+
+  if (estimate.monthlyAmount == 0 && !hasVariablePricing) {
+    return '$toolPrice The listed recurring fixed cost fits your '
+        '${_budgetLabel(budget)} of ${budget.currency} '
+        '${_formatAmount(budget.amount)}; unlisted usage charges are not '
+        'included. $provenance';
+  }
+  return '$toolPrice The budget period was not stated. Say whether '
+      '${budget.currency} ${_formatAmount(budget.amount)} is monthly or total '
+      'to compare it with recurring prices.'
+      '${hasVariablePricing ? ' Variable charges apply (${estimate.variablePricing}).' : ''} '
+      '$provenance';
+}
+
+_CombinedMonthlyCosts? _combinedMonthlyCosts(
+  List<ToolRecommendation> recommendations,
+  Map<String, ToolPriceEstimate> priceEstimates,
+) {
+  final estimates = <ToolPriceEstimate>[];
+  for (final recommendation in recommendations) {
+    final estimate = priceEstimates[recommendation.name];
+    if (estimate == null ||
+        !estimate.monthlyAmount.isFinite ||
+        estimate.monthlyAmount < 0 ||
+        estimate.currency.trim().isEmpty ||
+        estimate.basis.trim().isEmpty ||
+        estimate.sourceUrl.trim().isEmpty ||
+        estimate.lastChecked.trim().isEmpty ||
+        (estimate.variablePricing != null &&
+            estimate.variablePricing!.trim().isEmpty)) {
+      return null;
+    }
+    estimates.add(estimate);
+  }
+
+  final currency = estimates.first.currency;
+  if (estimates.any(
+    (estimate) => estimate.currency.toUpperCase() != currency.toUpperCase(),
+  )) {
+    return null;
+  }
+
+  return _CombinedMonthlyCosts(
+    fixedAmount: estimates.fold(
+      0,
+      (total, estimate) => total + estimate.monthlyAmount,
+    ),
+    currency: currency,
+  );
+}
+
+class _CombinedMonthlyCosts {
+  const _CombinedMonthlyCosts({
+    required this.fixedAmount,
+    required this.currency,
+  });
+
+  final double fixedAmount;
+  final String currency;
+}
+
+String _budgetLabel(Budget budget) {
+  final type = budget.hard ? 'hard cap' : 'target budget';
+  return switch (budget.period) {
+    BudgetPeriod.monthly => '$type per month',
+    BudgetPeriod.total => 'total $type',
+    BudgetPeriod.unspecified => type,
+  };
 }
 
 List<ToolRecommendation> _recommendationsFor({
@@ -409,8 +556,10 @@ String _statedContext(ProjectState state, Budget? budget) {
     ...state.features.map((value) => 'feature ${value.trim()}'),
   ];
   if (budget != null) {
-    final capType = budget.hard ? 'hard cap' : 'target budget';
-    details.add('$capType ${budget.currency} ${_formatAmount(budget.amount)}');
+    details.add(
+      '${_budgetLabel(budget)} ${budget.currency} '
+      '${_formatAmount(budget.amount)}',
+    );
   }
   return details.isEmpty
       ? 'the stated project requirements'
@@ -424,10 +573,10 @@ String _budgetAcknowledgment(Budget? budget) {
         'Check current pricing before committing to a stack.';
   }
 
-  final capType = budget.hard ? 'hard cap' : 'target budget';
-  return 'Budget noted: $capType of ${budget.currency} '
-      '${_formatAmount(budget.amount)}. This shortlist is not verified against '
-      'live pricing; check current plans and usage charges before committing.';
+  return 'Budget noted: ${_budgetLabel(budget)} of ${budget.currency} '
+      '${_formatAmount(budget.amount)}. Provider catalogue estimates are '
+      'reviewed figures, not live quotes; check current plans and usage '
+      'charges before committing.';
 }
 
 String _formatAmount(double amount) =>
