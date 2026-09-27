@@ -161,7 +161,7 @@ class ChatController extends ChangeNotifier {
 
     try {
       final stopwatch = Stopwatch()..start();
-      final replyText = await _replySender(message.text);
+      final replyText = await _replySender(_projectDescriptionThrough(message));
       stopwatch.stop();
       budgetTimer.cancel();
       lastRoundTripMs = stopwatch.elapsedMilliseconds;
@@ -232,6 +232,21 @@ class ChatController extends ChangeNotifier {
   }
 
   String _generateId() => _uuid.v4();
+
+  String _projectDescriptionThrough(ChatMessage message) {
+    final messageIndex = messages.indexWhere((item) => item.id == message.id);
+    if (messageIndex == -1) {
+      throw StateError('Cannot extract project facts for a missing message.');
+    }
+
+    final userDescriptions = messages
+        .take(messageIndex + 1)
+        .where((item) => item.sender == MessageSender.user)
+        .map((item) => '- ${item.text}')
+        .join('\n');
+    return 'Extract project facts from these user messages in order:\n'
+        '$userDescriptions';
+  }
 
   @override
   void dispose() {
