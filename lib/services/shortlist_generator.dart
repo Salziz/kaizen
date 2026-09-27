@@ -247,6 +247,7 @@ String _budgetAssessment({
       // Zero in the estimate's currency is zero in any currency — no
       // exchange rate is needed to know that a genuinely free fixed
       // cost fits a positive budget stated in a different currency.
+      // This is a real fit statement, not a softened "not confirmed."
       return '$toolPrice Its listed fixed price is zero, which fits your '
           '${_budgetLabel(budget)} of ${budget.currency} '
           '${_formatAmount(budget.amount)} regardless of currency — a zero '
@@ -324,12 +325,32 @@ String _budgetAssessment({
         '$provenance';
   }
 
-  if (estimate.monthlyAmount == 0 && !hasVariablePricing) {
-    return '$toolPrice The listed recurring fixed cost fits your '
-        '${_budgetLabel(budget)} of ${budget.currency} '
-        '${_formatAmount(budget.amount)}; unlisted usage charges are not '
+  if (budget.amount == 0 &&
+      estimate.monthlyAmount == 0 &&
+      !hasVariablePricing) {
+    // "fits within" — matching the phrasing used everywhere else a fit
+    // verdict is stated, so the same verdict always reads the same way
+    // regardless of which branch produced it.
+    return '$toolPrice The listed recurring fixed cost fits within your '
+        'zero ${_budgetLabel(budget)}; unlisted usage charges are not '
         'included. $provenance';
   }
+
+  // A genuinely zero-cost, no-variable-pricing tool is decidable against
+  // ANY positive budget amount even when the period itself is ambiguous —
+  // $0 can never exceed a stated positive figure, whether that figure
+  // means "per month" or "total." This is what closes the gap the
+  // period-unspecified case otherwise fell into: an ambiguous period
+  // only matters for comparing two nonzero numbers, not for confirming
+  // that zero fits under either interpretation.
+  if (estimate.monthlyAmount == 0 && !hasVariablePricing) {
+    return '$toolPrice This tool has no listed fixed cost, so it fits your '
+        '${_budgetLabel(budget)} of ${budget.currency} '
+        '${_formatAmount(budget.amount)} regardless of whether that figure '
+        'is monthly or total — a zero cost never exceeds a stated positive '
+        'amount. Unlisted usage charges are not included. $provenance';
+  }
+
   return '$toolPrice The budget period was not stated. Say whether '
       '${budget.currency} ${_formatAmount(budget.amount)} is monthly or total '
       'to compare it with recurring prices.'
