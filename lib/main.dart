@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import 'controllers/chat_controller.dart';
 import 'screens/chat_screen.dart';
 
 void main() {
@@ -8,9 +7,7 @@ void main() {
 }
 
 class KaizenApp extends StatelessWidget {
-  const KaizenApp({super.key, this.controller});
-
-  final ChatController? controller;
+  const KaizenApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -21,7 +18,7 @@ class KaizenApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
       ),
-      home: ChatScreen(controller: controller),
+      home: const ChatScreen(),
     );
   }
 }

@@ -12,9 +12,7 @@ const _characterLimit = 2000;
 const _warningThreshold = 1800;
 
 class ChatScreen extends StatefulWidget {
-  const ChatScreen({super.key, this.controller});
-
-  final ChatController? controller;
+  const ChatScreen({super.key});
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -26,7 +24,6 @@ class _ChatScreenState extends State<ChatScreen>
 
   late final ConversationStore _store;
   late final ChatController _controller;
-  late final bool _ownsController;
   final SharedPreferencesAsync _preferences = SharedPreferencesAsync();
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
@@ -45,8 +42,7 @@ class _ChatScreenState extends State<ChatScreen>
   void initState() {
     super.initState();
     _store = ConversationStore();
-    _ownsController = widget.controller == null;
-    _controller = widget.controller ?? ChatController(_store);
+    _controller = ChatController(_store);
     _controller.addListener(_onControllerChanged);
     WidgetsBinding.instance.addObserver(this);
     unawaited(_restorePersistedBackgroundTime());
@@ -141,17 +137,14 @@ class _ChatScreenState extends State<ChatScreen>
   }
 
   void _retryLatest() {
-    final userMessages = _controller.messages.where(
+    final message = _controller.messages.lastWhere(
       (item) =>
           item.sender == MessageSender.user &&
           (item.status == MessageStatus.pending ||
               item.status == MessageStatus.sent ||
               item.status == MessageStatus.failed),
     );
-    if (userMessages.isEmpty) {
-      return;
-    }
-    unawaited(_controller.retry(userMessages.last.id));
+    unawaited(_controller.retry(message.id));
   }
 
   @override
@@ -220,9 +213,7 @@ class _ChatScreenState extends State<ChatScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _controller.removeListener(_onControllerChanged);
-    if (_ownsController) {
-      _controller.dispose();
-    }
+    _controller.dispose();
     _backgroundedAt.dispose();
     _lastEvent.dispose();
     _textController.dispose();
