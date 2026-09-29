@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
 
 import '../models/chat_message.dart';
@@ -12,6 +14,40 @@ enum ReplyState { idle, waiting, overdue, received, noAnswer }
 typedef ReplySender = Future<String> Function(String text);
 
 class ChatController extends ChangeNotifier {
+  static const unreachableErrorMessage =
+      "Can't reach Kaizen right now. Nothing you typed was lost — check your connection and try again.";
+
+  static bool isNetworkUnreachable(Object error) {
+    if (error is SocketException) {
+      return true;
+    }
+    if (error is http.ClientException) {
+      return true;
+    }
+    if (error is HttpException) {
+      return true;
+    }
+    if (error is HandshakeException || error is TlsException) {
+      return true;
+    }
+    final message = error.toString().toLowerCase();
+    return message.contains('socketexception') ||
+        message.contains('failed host lookup') ||
+        message.contains('connection refused') ||
+        message.contains('network is unreachable') ||
+        message.contains('network unreachable') ||
+        message.contains('no address associated with hostname') ||
+        message.contains('connection reset') ||
+        message.contains('connection closed') ||
+        message.contains('connection failed') ||
+        message.contains('failed to connect') ||
+        message.contains('clientexception') ||
+        message.contains('network error') ||
+        message.contains('network_error') ||
+        message.contains('network failed') ||
+        message.contains('unreachable');
+  }
+
   ChatController(
     this._store, {
     ReplySender? replySender,
@@ -196,7 +232,11 @@ class ChatController extends ChangeNotifier {
         replyState = ReplyState.idle;
       }
 
-      errorMessage = error.toString().replaceFirst('Bad state: ', '');
+      if (isNetworkUnreachable(error)) {
+        errorMessage = unreachableErrorMessage;
+      } else {
+        errorMessage = error.toString().replaceFirst('Bad state: ', '');
+      }
       notifyListeners();
     }
   }
