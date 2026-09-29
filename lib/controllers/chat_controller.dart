@@ -17,35 +17,32 @@ class ChatController extends ChangeNotifier {
   static const unreachableErrorMessage =
       "Can't reach Kaizen right now. Nothing you typed was lost — check your connection and try again.";
 
+  /// True only for failures where the request never reached the service
+  /// at all — genuine client-side connectivity failure. Deliberately
+  /// type-only, no string matching against error.toString(): a server's
+  /// own error message can contain words like "network error" or
+  /// "unreachable" in its text without meaning the PHONE is unreachable,
+  /// and matching on that text mislabels a server-side failure as a
+  /// connectivity problem, which is the exact dishonesty this ticket
+  /// exists to prevent.
+  ///
+  /// SocketException and http.ClientException are thrown by dart:io/
+  /// package:http specifically when a request never got a response —
+  /// DNS failure, connection refused, connection reset, no route to
+  /// host. A StateError carrying an HTTP status (from GroqReplyService's
+  /// own handling of a non-2xx response) means the request DID reach
+  /// the service; that's a server-side failure, not unreachability, and
+  /// must not be classified here.
+  ///
+  /// TLS/handshake failures (HandshakeException, TlsException) are
+  /// deliberately NOT included: a bad or expired certificate means the
+  /// phone successfully reached the host and completed TCP — the
+  /// failure is about the host's identity, not whether it's reachable.
+  /// Telling the user to "check your connection" when their connection
+  /// is fine and the certificate is bad is the same misdiagnosis this
+  /// function exists to avoid making in the other direction.
   static bool isNetworkUnreachable(Object error) {
-    if (error is SocketException) {
-      return true;
-    }
-    if (error is http.ClientException) {
-      return true;
-    }
-    if (error is HttpException) {
-      return true;
-    }
-    if (error is HandshakeException || error is TlsException) {
-      return true;
-    }
-    final message = error.toString().toLowerCase();
-    return message.contains('socketexception') ||
-        message.contains('failed host lookup') ||
-        message.contains('connection refused') ||
-        message.contains('network is unreachable') ||
-        message.contains('network unreachable') ||
-        message.contains('no address associated with hostname') ||
-        message.contains('connection reset') ||
-        message.contains('connection closed') ||
-        message.contains('connection failed') ||
-        message.contains('failed to connect') ||
-        message.contains('clientexception') ||
-        message.contains('network error') ||
-        message.contains('network_error') ||
-        message.contains('network failed') ||
-        message.contains('unreachable');
+    return error is SocketException || error is http.ClientException;
   }
 
   ChatController(

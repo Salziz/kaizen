@@ -81,6 +81,112 @@ void main() {
       );
     });
 
+    test('isNetworkUnreachable is strictly type-based and rejects TLS and server errors', () {
+      // Client-side reachability failures (request never got a response)
+      expect(
+        ChatController.isNetworkUnreachable(
+          const SocketException('OS Error: Network is unreachable, errno = 101'),
+        ),
+        isTrue,
+      );
+      expect(
+        ChatController.isNetworkUnreachable(
+          http.ClientException('Connection refused', Uri.parse('https://api.groq.com')),
+        ),
+        isTrue,
+      );
+
+      // TLS negotiation / certificate failures are NOT reachability failures
+      expect(
+        ChatController.isNetworkUnreachable(
+          const HandshakeException('CERTIFICATE_VERIFY_FAILED: certificate has expired'),
+        ),
+        isFalse,
+      );
+      expect(
+        ChatController.isNetworkUnreachable(
+          const TlsException('Handshake error: TLS negotiation failed'),
+        ),
+        isFalse,
+      );
+      expect(
+        ChatController.isNetworkUnreachable(
+          const HttpException('Service unavailable'),
+        ),
+        isFalse,
+      );
+
+      // Regression test for Lars's finding: StateError carrying server response bodies
+      // containing "network error", "unreachable", or "connection failed" must NOT be classified as unreachable
+      expect(
+        ChatController.isNetworkUnreachable(
+          StateError('Groq request failed with HTTP 502: upstream network error'),
+        ),
+        isFalse,
+      );
+      expect(
+        ChatController.isNetworkUnreachable(
+          StateError('Groq request failed with HTTP 503: host unreachable'),
+        ),
+        isFalse,
+      );
+      expect(
+        ChatController.isNetworkUnreachable(
+          StateError('Groq request failed with HTTP 504: connection failed'),
+        ),
+        isFalse,
+      );
+    });
+
+    test(
+      'Server 502 with upstream network error text does NOT show unreachable copy',
+      () async {
+        final controller = ChatController(
+          ConversationStore(),
+          replySender: (_) async {
+            throw StateError(
+              'Groq request failed with HTTP 502: upstream network error',
+            );
+          },
+        );
+
+        await controller.sendMessage('Test 502 upstream error');
+        await Future<void>.delayed(Duration.zero);
+
+        expect(
+          controller.errorMessage,
+          'Groq request failed with HTTP 502: upstream network error',
+        );
+        expect(
+          controller.errorMessage,
+          isNot(ChatController.unreachableErrorMessage),
+        );
+      },
+    );
+
+    test('TLS handshake failure does NOT show unreachable copy', () async {
+      final controller = ChatController(
+        ConversationStore(),
+        replySender: (_) async {
+          throw const HandshakeException(
+            'Handshake error in client (OS Error: CERTIFICATE_VERIFY_FAILED)',
+          );
+        },
+      );
+
+      await controller.sendMessage('Test TLS failure');
+      await Future<void>.delayed(Duration.zero);
+
+      expect(
+        controller.errorMessage,
+        'HandshakeException: Handshake error in client (OS Error: CERTIFICATE_VERIFY_FAILED)',
+      );
+      expect(
+        controller.errorMessage,
+        isNot(ChatController.unreachableErrorMessage),
+      );
+    });
+
     test('Non-unreachable server errors do NOT show unreachable copy', () async {
       final controller = ChatController(
         ConversationStore(),
@@ -144,6 +250,50 @@ void main() {
             "Can't reach Kaizen right now. Nothing you typed was lost — check your connection and try again.",
           ),
           findsOneWidget,
+        );
+      },
+    );
+
+    testWidgets(
+      'UI: Server error containing "upstream network error" displays actual server message, not unreachability banner',
+      (WidgetTester tester) async {
+        final store = ConversationStore();
+        final controller = ChatController(
+          store,
+          replySender: (_) async {
+            throw StateError(
+              'Groq request failed with HTTP 502: upstream network error',
+            );
+          },
+        );
+
+        await tester.pumpWidget(KaizenApp(controller: controller));
+        await tester.pumpAndSettle();
+
+        const inputMessage = 'Server error check';
+        await tester.enterText(find.byType(TextField), inputMessage);
+        await tester.pump();
+        await tester.tap(find.byType(ElevatedButton));
+        await tester.pumpAndSettle();
+
+        // 1. Input field is cleared.
+        expect(
+          tester.widget<TextField>(find.byType(TextField)).controller?.text ?? '',
+          isEmpty,
+        );
+
+        // 2. Failed turn tag shown.
+        expect(find.text(inputMessage), findsOneWidget);
+        expect(find.text('Not sent. Tap to send again.'), findsOneWidget);
+
+        // 3. Banner displays the actual server error text, NOT the unreachable copy.
+        expect(
+          find.text('Groq request failed with HTTP 502: upstream network error'),
+          findsOneWidget,
+        );
+        expect(
+          find.text(ChatController.unreachableErrorMessage),
+          findsNothing,
         );
       },
     );
