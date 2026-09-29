@@ -66,10 +66,7 @@ void main() {
       final refusedController = ChatController(
         ConversationStore(),
         replySender: (_) async {
-          throw http.ClientException(
-            'Connection refused',
-            Uri.parse('https://api.groq.com'),
-          );
+          throw const SocketException('Connection refused, errno = 111');
         },
       );
 
@@ -81,7 +78,7 @@ void main() {
       );
     });
 
-    test('isNetworkUnreachable is strictly type-based and rejects TLS and server errors', () {
+    test('isNetworkUnreachable is strictly SocketException (Option B) and rejects ClientException, TLS, and server errors', () {
       // Client-side reachability failures (request never got a response)
       expect(
         ChatController.isNetworkUnreachable(
@@ -91,9 +88,20 @@ void main() {
       );
       expect(
         ChatController.isNetworkUnreachable(
-          http.ClientException('Connection refused', Uri.parse('https://api.groq.com')),
+          const SocketException('Failed host lookup: "api.groq.com"'),
         ),
         isTrue,
+      );
+
+      // Option B: http.ClientException is deliberately NOT classified as unreachable because
+      // package:http's IOClient wraps both genuine connection failures and server-reached
+      // malformed/truncated responses (HttpException) into ClientException, erasing the type.
+      // Under Option B, we choose the safe direction: never mislabel a broken server response as "check your connection".
+      expect(
+        ChatController.isNetworkUnreachable(
+          http.ClientException('Connection refused', Uri.parse('https://api.groq.com')),
+        ),
+        isFalse,
       );
 
       // TLS negotiation / certificate failures are NOT reachability failures
@@ -137,6 +145,32 @@ void main() {
         isFalse,
       );
     });
+
+    test(
+      'Option B: ClientException falls through to generic error path and does NOT show unreachable copy',
+      () async {
+        final clientException = http.ClientException(
+          'Connection closed while receiving data',
+          Uri.parse('https://api.groq.com'),
+        );
+        final controller = ChatController(
+          ConversationStore(),
+          replySender: (_) async => throw clientException,
+        );
+
+        await controller.sendMessage('Test client exception');
+        await Future<void>.delayed(Duration.zero);
+
+        expect(
+          controller.errorMessage,
+          'ClientException: Connection closed while receiving data, uri=https://api.groq.com',
+        );
+        expect(
+          controller.errorMessage,
+          isNot(ChatController.unreachableErrorMessage),
+        );
+      },
+    );
 
     test(
       'Server 502 with upstream network error text does NOT show unreachable copy',
