@@ -78,7 +78,7 @@ void main() {
       );
     });
 
-    test('isNetworkUnreachable is strictly SocketException (Option B) and rejects ClientException, TLS, and server errors', () {
+    test('isNetworkUnreachable is strictly SocketException and rejects ClientException, TLS, and server errors', () {
       // Client-side reachability failures (request never got a response)
       expect(
         ChatController.isNetworkUnreachable(
@@ -93,10 +93,10 @@ void main() {
         isTrue,
       );
 
-      // Option B: http.ClientException is deliberately NOT classified as unreachable because
-      // package:http's IOClient wraps both genuine connection failures and server-reached
-      // malformed/truncated responses (HttpException) into ClientException, erasing the type.
-      // Under Option B, we choose the safe direction: never mislabel a broken server response as "check your connection".
+      // http.ClientException is deliberately NOT classified as unreachable:
+      // GroqReplyService unwraps exceptions directly from dart:io HttpClient,
+      // so genuine reachability failures surface as real SocketExceptions.
+      // Any ClientException safely falls through to the generic error path.
       expect(
         ChatController.isNetworkUnreachable(
           http.ClientException('Connection refused', Uri.parse('https://api.groq.com')),
@@ -147,7 +147,7 @@ void main() {
     });
 
     test(
-      'Option B: ClientException falls through to generic error path and does NOT show unreachable copy',
+      'ClientException falls through to generic error path and does NOT show unreachable copy',
       () async {
         final clientException = http.ClientException(
           'Connection closed while receiving data',

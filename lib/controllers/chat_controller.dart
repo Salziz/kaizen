@@ -16,31 +16,27 @@ class ChatController extends ChangeNotifier {
   static const unreachableErrorMessage =
       "Can't reach Kaizen right now. Nothing you typed was lost — check your connection and try again.";
 
-  /// True only for failures where the request provably never reached the
-  /// service — genuine client-side connectivity failure.
+  /// True only for failures where the request never reached the service
+  /// at all — genuine client-side connectivity failure (DNS resolution
+  /// failure, connection refused, no route to host, network unreachable).
   ///
-  /// Option B (Conservative reachability): Restricted strictly to
-  /// [SocketException]. We deliberately do NOT include [http.ClientException]:
-  /// package:http's IOClient wraps both genuine connection failures and
-  /// server-reached malformed/truncated responses (dart:io HttpException) into
-  /// ClientException with only a message string, destroying the original
-  /// exception type. Because ClientException cannot prove the request never
-  /// reached the service, treating it as unreachability risks misdiagnosing
-  /// a broken server response as "check your connection".
+  /// This check is precise (not conservative-under-classifying) because
+  /// GroqReplyService's production client no longer uses package:http's
+  /// default IOClient, which used to collapse SocketException and
+  /// HttpException into a single ClientException type with no way to
+  /// tell them apart afterward. GroqReplyService now uses a client that
+  /// talks to dart:io's HttpClient directly and lets the original
+  /// exception type propagate untouched (see _UnwrappingIOClient in
+  /// groq_reply_service.dart) — so `is SocketException` here reliably
+  /// means what it says, and HttpException (reached the server, response
+  /// was malformed or truncated) correctly does NOT match, since that's
+  /// a different failure class the user shouldn't be told is a
+  /// connectivity problem.
   ///
-  /// Any ClientException safely falls through to the generic error path.
-  /// Showing a generic error on an ambiguous failure is far better than
-  /// falsely telling the user their connection is at fault when the server
-  /// was reached and broke. It never lies; it is just conservative.
-  ///
-  /// TLS/handshake failures (HandshakeException, TlsException) are also
-  /// deliberately NOT included: a bad or expired certificate means the
-  /// phone successfully reached the host and completed TCP — the failure is
-  /// about host identity, not reachability.
-  ///
-  /// TODO: Option A — configure GroqReplyService / networking layer to talk to
-  /// dart:io's HttpClient directly (or configure a custom client) so genuine
-  /// transport failures are preserved and distinguished without collapsing types.
+  /// TLS/handshake failures (HandshakeException, TlsException) remain
+  /// deliberately excluded for the same reason as before: the phone
+  /// completed TCP, the failure is about the host's identity, not
+  /// reachability.
   static bool isNetworkUnreachable(Object error) {
     return error is SocketException;
   }
