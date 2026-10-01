@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io' as io;
 
 import 'package:http/http.dart' as http;
 
@@ -6,12 +7,77 @@ import '../models/project_state.dart';
 import 'shortlist_generator.dart';
 import 'tool_price_catalogue.dart';
 
+/// A minimal http.BaseClient backed directly by dart:io's HttpClient,
+/// used instead of package:http's default IOClient.
+///
+/// The reason this exists: http.Client() on IO platforms resolves to
+/// IOClient, whose send() has a catch block of the shape
+/// `on SocketException catch (e) { throw ClientException(e.message, url); }`
+/// — it silently rewraps genuine connectivity failures (SocketException)
+/// AND reached-but-broken-response failures (HttpException) into the
+/// same ClientException type, with no field to recover which one it
+/// originally was. That collapsing makes it impossible for
+/// ChatController.isNetworkUnreachable to correctly distinguish "the
+/// phone never reached the service" from "the service was reached and
+/// something else broke" — which is the exact distinction TFS-005
+/// exists to get right.
+///
+/// This client deliberately does NOT catch or rewrap exceptions from
+/// the underlying HttpClient — SocketException and HttpException
+/// propagate to the caller exactly as dart:io throws them, so
+/// isNetworkUnreachable can check `is SocketException` and have that
+/// mean what it says.
+class _UnwrappingIOClient extends http.BaseClient {
+  final io.HttpClient _inner = io.HttpClient();
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    final ioRequest = await _inner.openUrl(request.method, request.url);
+    request.headers.forEach((key, value) => ioRequest.headers.set(key, value));
+
+    if (request is http.Request && request.bodyBytes.isNotEmpty) {
+      ioRequest.contentLength = request.bodyBytes.length;
+      ioRequest.add(request.bodyBytes);
+    } else {
+      ioRequest.contentLength = 0;
+    }
+
+    // Deliberately no try/catch here. A SocketException or HttpException
+    // thrown by openUrl(...) or close() below propagates to the caller
+    // untouched — that's the entire point of this class.
+    final ioResponse = await ioRequest.close();
+
+    final headers = <String, String>{};
+    ioResponse.headers.forEach((name, values) {
+      headers[name] = values.join(',');
+    });
+
+    return http.StreamedResponse(
+      ioResponse,
+      ioResponse.statusCode,
+      contentLength:
+          ioResponse.contentLength == -1 ? null : ioResponse.contentLength,
+      headers: headers,
+      reasonPhrase: ioResponse.reasonPhrase,
+    );
+  }
+
+  @override
+  void close() {
+    _inner.close(force: true);
+    super.close();
+  }
+}
+
 class GroqReplyService {
   GroqReplyService({
     required this.apiKey,
     this.model = 'openai/gpt-oss-120b',
+    Uri? endpoint,
     http.Client? client,
-  }) : _client = client ?? http.Client();
+  })  : _endpoint = endpoint ??
+            Uri.parse('https://api.groq.com/openai/v1/chat/completions'),
+        _client = client ?? _UnwrappingIOClient();
 
   factory GroqReplyService.fromEnvironment({http.Client? client}) {
     return GroqReplyService(
@@ -26,6 +92,7 @@ class GroqReplyService {
 
   final String apiKey;
   final String model;
+  final Uri _endpoint;
   final http.Client _client;
 
   Future<String> generateReply(String prompt) async {
@@ -37,7 +104,7 @@ class GroqReplyService {
     }
 
     final response = await _client.post(
-      Uri.parse('https://api.groq.com/openai/v1/chat/completions'),
+      _endpoint,
       headers: {
         'Authorization': 'Bearer $apiKey',
         'Content-Type': 'application/json',

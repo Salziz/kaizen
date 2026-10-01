@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
@@ -12,6 +13,34 @@ enum ReplyState { idle, waiting, overdue, received, noAnswer }
 typedef ReplySender = Future<String> Function(String text);
 
 class ChatController extends ChangeNotifier {
+  static const unreachableErrorMessage =
+      "Can't reach Kaizen right now. Nothing you typed was lost — check your connection and try again.";
+
+  /// True only for failures where the request never reached the service
+  /// at all — genuine client-side connectivity failure (DNS resolution
+  /// failure, connection refused, no route to host, network unreachable).
+  ///
+  /// This check is precise (not conservative-under-classifying) because
+  /// GroqReplyService's production client no longer uses package:http's
+  /// default IOClient, which used to collapse SocketException and
+  /// HttpException into a single ClientException type with no way to
+  /// tell them apart afterward. GroqReplyService now uses a client that
+  /// talks to dart:io's HttpClient directly and lets the original
+  /// exception type propagate untouched (see _UnwrappingIOClient in
+  /// groq_reply_service.dart) — so `is SocketException` here reliably
+  /// means what it says, and HttpException (reached the server, response
+  /// was malformed or truncated) correctly does NOT match, since that's
+  /// a different failure class the user shouldn't be told is a
+  /// connectivity problem.
+  ///
+  /// TLS/handshake failures (HandshakeException, TlsException) remain
+  /// deliberately excluded for the same reason as before: the phone
+  /// completed TCP, the failure is about the host's identity, not
+  /// reachability.
+  static bool isNetworkUnreachable(Object error) {
+    return error is SocketException;
+  }
+
   ChatController(
     this._store, {
     ReplySender? replySender,
@@ -196,7 +225,11 @@ class ChatController extends ChangeNotifier {
         replyState = ReplyState.idle;
       }
 
-      errorMessage = error.toString().replaceFirst('Bad state: ', '');
+      if (isNetworkUnreachable(error)) {
+        errorMessage = unreachableErrorMessage;
+      } else {
+        errorMessage = error.toString().replaceFirst('Bad state: ', '');
+      }
       notifyListeners();
     }
   }
