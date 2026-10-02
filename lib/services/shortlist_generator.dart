@@ -1,4 +1,5 @@
 import '../models/project_state.dart';
+import '../models/variable_rate.dart';
 import 'recommendation_gate.dart';
 
 class ToolRecommendation {
@@ -15,6 +16,23 @@ class ToolRecommendation {
   final String rationale;
   final String tradeoff;
   final String budgetAssessment;
+
+  Map<String, dynamic> toJson() => {
+        'name': name,
+        'category': category,
+        'rationale': rationale,
+        'tradeoff': tradeoff,
+        'budgetAssessment': budgetAssessment,
+      };
+
+  factory ToolRecommendation.fromJson(Map<String, dynamic> json) =>
+      ToolRecommendation(
+        name: json['name'] as String,
+        category: json['category'] as String,
+        rationale: json['rationale'] as String,
+        tradeoff: json['tradeoff'] as String,
+        budgetAssessment: json['budgetAssessment'] as String? ?? '',
+      );
 }
 
 class ToolPriceEstimate {
@@ -24,7 +42,8 @@ class ToolPriceEstimate {
     required this.basis,
     required this.sourceUrl,
     required this.lastChecked,
-    this.variablePricing,
+    this.variableRate,
+    this.knownLimitation,
   });
 
   final double monthlyAmount;
@@ -32,7 +51,34 @@ class ToolPriceEstimate {
   final String basis;
   final String sourceUrl;
   final String lastChecked;
-  final String? variablePricing;
+
+  /// Structured replacement for the old free-text `variablePricing`
+  /// field. See variable_rate.dart for why: a prose string could only
+  /// say THAT a tool had variable pricing, never compute HOW MUCH it
+  /// would cost at a given usage level — which was the actual root
+  /// cause of the zero-hard-cap misclassification this type replaces.
+  final VariableRate? variableRate;
+
+  /// Flagged limitation when this estimate represents a partial figure or
+  /// lower bound (e.g. Stripe flat fee only, excluding transaction value %).
+  final String? knownLimitation;
+
+  bool get hasKnownLimitation => knownLimitation != null;
+  bool get isPartial => hasKnownLimitation;
+
+  /// Exact cost at a given monthly request volume: fixed component
+  /// plus whatever the variable rate computes for that volume. This is
+  /// arithmetic over catalogue-held numbers (the fixed amount, the
+  /// rate, the free allowance) — never a guess, never an
+  /// interpolation. Returns null only when the variable rate itself
+  /// reports the volume exceeds what the catalogue confidently prices
+  /// (see VariableRate.maxKnownRequests).
+  double? costAtRequests(int requestsPerMonth) {
+    if (variableRate == null) return monthlyAmount;
+    final variableCost = variableRate!.costAt(requestsPerMonth);
+    if (variableCost == null) return null;
+    return monthlyAmount + variableCost;
+  }
 }
 
 class ShortlistResult {
@@ -49,6 +95,38 @@ class ShortlistResult {
   final Budget? budget;
 
   bool get canRecommend => gate.canRecommend;
+
+  /// JSON round trip — this is what lets TFS-009's transport carry the
+  /// same structure over the wire, and what lets the UI widgets
+  /// consume ShortlistResult directly instead of only ever receiving
+  /// toReplyText()'s flattened prose. toReplyText() remains a
+  /// rendering helper for the plain-text chat path; it is not the only
+  /// way to consume this type anymore.
+  Map<String, dynamic> toJson() => {
+        'canRecommend': canRecommend,
+        'missing': gate.missing,
+        'recommendations': recommendations.map((r) => r.toJson()).toList(),
+        'budgetAcknowledgment': budgetAcknowledgment,
+        'budget': budget?.toJson(),
+      };
+
+  factory ShortlistResult.fromJson(Map<String, dynamic> json) {
+    final canRecommend = json['canRecommend'] as bool;
+    final gate = GateResult(
+      verdict: canRecommend ? GateVerdict.enough : GateVerdict.notEnough,
+      missing: List<String>.from(json['missing'] as List? ?? []),
+    );
+    return ShortlistResult(
+      gate: gate,
+      recommendations: (json['recommendations'] as List? ?? [])
+          .map((r) => ToolRecommendation.fromJson(r as Map<String, dynamic>))
+          .toList(),
+      budgetAcknowledgment: json['budgetAcknowledgment'] as String?,
+      budget: json['budget'] != null
+          ? Budget.fromJson(json['budget'] as Map<String, dynamic>)
+          : null,
+    );
+  }
 
   String toReplyText() {
     if (!canRecommend) {
@@ -196,6 +274,16 @@ List<String> validateShortlist(ShortlistResult result) {
   return violations;
 }
 
+/// Plain-words description of a tool's variable rate, for display in
+/// prose contexts (the old free-text field's job, now derived from
+/// structured data instead of being the source of truth itself).
+String _describeVariableRate(VariableRate rate) {
+  final allowancePart = rate.freeAllowanceRequests > 0
+      ? 'first ${rate.freeAllowanceRequests} requests free, then '
+      : '';
+  return '$allowancePart\$${rate.ratePerRequest} per request beyond that';
+}
+
 String _budgetAssessment({
   required Budget? budget,
   required ToolPriceEstimate? estimate,
@@ -211,9 +299,7 @@ String _budgetAssessment({
       estimate.currency.trim().isEmpty ||
       estimate.basis.trim().isEmpty ||
       estimate.sourceUrl.trim().isEmpty ||
-      estimate.lastChecked.trim().isEmpty ||
-      (estimate.variablePricing != null &&
-          estimate.variablePricing!.trim().isEmpty)) {
+      estimate.lastChecked.trim().isEmpty) {
     return 'Your ${budget.hard ? 'hard cap' : 'target budget'} of '
         '${budget.currency} ${_formatAmount(budget.amount)}. This tool’s '
         'price and its source or check date are unavailable, so whether it '
@@ -228,26 +314,33 @@ String _budgetAssessment({
       '(${estimate.basis}).';
   final sameCurrency =
       estimate.currency.toUpperCase() == budget.currency.toUpperCase();
-  final hasVariablePricing = estimate.variablePricing != null;
-  final zeroCapHasKnownCost =
-      budget.amount == 0 && (estimate.monthlyAmount > 0 || hasVariablePricing);
+  final hasVariableRate = estimate.variableRate != null;
+  final variableSuffix = hasVariableRate
+      ? ' Variable charges apply (${_describeVariableRate(estimate.variableRate!)}).'
+      : '';
 
-  if (zeroCapHasKnownCost) {
-    final reason = hasVariablePricing
+  // A tool exceeds a zero cap if its fixed monthly cost is positive,
+  // or if its variable rate has no free allowance (so any transaction is billable).
+  // A tool with a free allowance before its rate kicks in does not exceed
+  // a $0 cap at baseline, closing the bug where free-tier-with-overage tools
+  // were misclassified as exceeding $0.
+  final hasZeroCapExcess = estimate.monthlyAmount > 0 ||
+      (estimate.variableRate != null &&
+          estimate.variableRate!.freeAllowanceRequests == 0 &&
+          estimate.variableRate!.ratePerRequest > 0);
+  final zeroCapHasKnownExcess = budget.amount == 0 && hasZeroCapExcess;
+
+  if (zeroCapHasKnownExcess) {
+    final reason = estimate.variableRate != null &&
+            estimate.variableRate!.freeAllowanceRequests == 0
         ? 'variable charges are positive for any charged transaction'
         : 'its known recurring cost is positive';
     return '$toolPrice This tool exceeds your ${_budgetLabel(budget)} of '
-        '${budget.currency} 0 because $reason.'
-        '${hasVariablePricing ? ' Variable charges apply (${estimate.variablePricing}).' : ''} '
-        '$provenance';
+        '${budget.currency} 0 because $reason.$variableSuffix $provenance';
   }
 
   if (!sameCurrency) {
-    if (estimate.monthlyAmount == 0 && !hasVariablePricing) {
-      // Zero in the estimate's currency is zero in any currency — no
-      // exchange rate is needed to know that a genuinely free fixed
-      // cost fits a positive budget stated in a different currency.
-      // This is a real fit statement, not a softened "not confirmed."
+    if (estimate.monthlyAmount == 0 && !hasVariableRate) {
       return '$toolPrice Its listed fixed price is zero, which fits your '
           '${_budgetLabel(budget)} of ${budget.currency} '
           '${_formatAmount(budget.amount)} regardless of currency — a zero '
@@ -257,22 +350,20 @@ String _budgetAssessment({
     return '$toolPrice The currencies cannot be compared without an exchange '
         'rate; no conversion was applied, so whether this fits your '
         '${_budgetLabel(budget)} of ${budget.currency} '
-        '${_formatAmount(budget.amount)} is unknown.'
-        '${hasVariablePricing ? ' Variable charges apply (${estimate.variablePricing}).' : ''} '
-        '$provenance';
+        '${_formatAmount(budget.amount)} is unknown.$variableSuffix $provenance';
   }
 
   if (budget.period == BudgetPeriod.monthly) {
     final fitsFixed = estimate.monthlyAmount <= budget.amount;
-    if (hasVariablePricing) {
+    if (hasVariableRate) {
       final fixedStatus = fitsFixed
           ? 'its fixed monthly component fits within'
           : 'its fixed monthly component exceeds';
       return '$toolPrice The fixed component $fixedStatus your '
           '${_budgetLabel(budget)} of ${budget.currency} '
           '${_formatAmount(budget.amount)}, but additional variable charges '
-          'apply (${estimate.variablePricing}), so total fit is unknown. '
-          '$provenance';
+          'apply (${_describeVariableRate(estimate.variableRate!)}), so total '
+          'fit is unknown. $provenance';
     }
     final verdict = fitsFixed ? 'fits within' : 'exceeds';
     final stackNote =
@@ -312,7 +403,7 @@ String _budgetAssessment({
           '${_formatAmount(budget.amount)}; for a subset or alternatives, '
           'duration is needed to assess total cost. $provenance';
     }
-    if (estimate.monthlyAmount == 0 && !hasVariablePricing) {
+    if (estimate.monthlyAmount == 0 && !hasVariableRate) {
       return '$toolPrice The listed recurring fixed cost fits within your '
           '${_budgetLabel(budget)} of ${budget.currency} '
           '${_formatAmount(budget.amount)}; unlisted usage charges are not '
@@ -320,30 +411,16 @@ String _budgetAssessment({
     }
     return '$toolPrice Its monthly fixed cost is below your total budget, '
         'but project duration is unstated, so total fit is unknown.'
-        '$stackCostNote'
-        '${hasVariablePricing ? ' Variable charges apply (${estimate.variablePricing}).' : ''} '
-        '$provenance';
+        '$stackCostNote$variableSuffix $provenance';
   }
 
-  if (budget.amount == 0 &&
-      estimate.monthlyAmount == 0 &&
-      !hasVariablePricing) {
-    // "fits within" — matching the phrasing used everywhere else a fit
-    // verdict is stated, so the same verdict always reads the same way
-    // regardless of which branch produced it.
+  if (budget.amount == 0 && estimate.monthlyAmount == 0 && !hasVariableRate) {
     return '$toolPrice The listed recurring fixed cost fits within your '
         'zero ${_budgetLabel(budget)}; unlisted usage charges are not '
         'included. $provenance';
   }
 
-  // A genuinely zero-cost, no-variable-pricing tool is decidable against
-  // ANY positive budget amount even when the period itself is ambiguous —
-  // $0 can never exceed a stated positive figure, whether that figure
-  // means "per month" or "total." This is what closes the gap the
-  // period-unspecified case otherwise fell into: an ambiguous period
-  // only matters for comparing two nonzero numbers, not for confirming
-  // that zero fits under either interpretation.
-  if (estimate.monthlyAmount == 0 && !hasVariablePricing) {
+  if (estimate.monthlyAmount == 0 && !hasVariableRate) {
     return '$toolPrice This tool has no listed fixed cost, so it fits your '
         '${_budgetLabel(budget)} of ${budget.currency} '
         '${_formatAmount(budget.amount)} regardless of whether that figure '
@@ -353,9 +430,7 @@ String _budgetAssessment({
 
   return '$toolPrice The budget period was not stated. Say whether '
       '${budget.currency} ${_formatAmount(budget.amount)} is monthly or total '
-      'to compare it with recurring prices.'
-      '${hasVariablePricing ? ' Variable charges apply (${estimate.variablePricing}).' : ''} '
-      '$provenance';
+      'to compare it with recurring prices.$variableSuffix $provenance';
 }
 
 _CombinedMonthlyCosts? _combinedMonthlyCosts(
@@ -371,9 +446,7 @@ _CombinedMonthlyCosts? _combinedMonthlyCosts(
         estimate.currency.trim().isEmpty ||
         estimate.basis.trim().isEmpty ||
         estimate.sourceUrl.trim().isEmpty ||
-        estimate.lastChecked.trim().isEmpty ||
-        (estimate.variablePricing != null &&
-            estimate.variablePricing!.trim().isEmpty)) {
+        estimate.lastChecked.trim().isEmpty) {
       return null;
     }
     estimates.add(estimate);

@@ -1,11 +1,25 @@
 import 'shortlist_generator.dart';
+import '../models/variable_rate.dart';
 
 /// Rough monthly estimates reviewed against provider pricing pages on
-/// 2026-09-26. They are not quotes; replies include the source and review date.
-/// Amounts are USD. A non-USD budget gets a fit/break verdict only when no
-/// exchange rate is required (zero listed fixed cost, or a zero cap against a
-/// strictly positive listed cost or positive variable fee). Variable fees are
-/// otherwise unknown unless the stated cap itself settles the comparison.
+/// 2026-09-26. They are not quotes; replies include the source and review
+/// date. Amounts are USD.
+///
+/// FLAGGED LIMITATION — read before extending this file further:
+/// Stripe's real published rate is "2.9% + 30 cents per transaction."
+/// VariableRate can represent the flat 30-cent-per-request component
+/// exactly (it's a real, catalogue-held number), but NOT the 2.9%
+/// percentage-of-value component — that requires knowing the dollar
+/// value per transaction, which this catalogue does not collect and
+/// has no honest way to estimate without guessing. So Stripe's
+/// variableRate below models ONLY the flat per-transaction fee; any
+/// total computed from it is a real lower bound, not the full cost.
+/// This needs an explicit decision from Adaeze/the team: is a
+/// request-count-only usage ladder simply insufficient for
+/// percentage-of-volume pricing models, and if so, should Stripe (and
+/// any future percentage-fee tool) be marked as "unknown" at every
+/// rung instead of silently showing a partial number? Left as-is for
+/// now (flat fee only, nothing invented) pending that decision.
 const Map<String, ToolPriceEstimate> kToolPriceCatalogue = {
   'Supabase': ToolPriceEstimate(
     monthlyAmount: 0,
@@ -31,10 +45,19 @@ const Map<String, ToolPriceEstimate> kToolPriceCatalogue = {
   'Stripe': ToolPriceEstimate(
     monthlyAmount: 0,
     currency: 'USD',
-    basis: 'No fixed monthly fee; US domestic online card pricing',
+    basis:
+        'No fixed monthly fee; US domestic online card pricing. Variable '
+        'rate below covers only the flat per-transaction component — see '
+        'the flagged limitation note at the top of this file.',
     sourceUrl: 'https://stripe.com/pricing',
     lastChecked: '2026-09-26',
-    variablePricing: '2.9% + 30 cents per transaction',
+    variableRate: VariableRate(
+      freeAllowanceRequests: 0,
+      ratePerRequest: 0.30, // the flat 30-cent component only
+      maxKnownRequests: null,
+    ),
+    knownLimitation:
+        'Flat fee only; excludes 2.9% transaction-value fee which requires transaction volume.',
   ),
   'Shopify': ToolPriceEstimate(
     monthlyAmount: 29,
