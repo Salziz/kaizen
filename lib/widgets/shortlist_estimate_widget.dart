@@ -15,7 +15,7 @@ import '../services/tool_price_catalogue.dart';
 ///         carries one-time vs recurring attribute from the catalogue
 /// - AC05: Empty selection shows clear prompt explaining what choosing will produce,
 ///         never treating an empty selection as a real $0 estimate
-/// - AC06: Comprehensive breakdown per tool and total
+/// - AC06: Comprehensive breakdown per tool and total, including verification dates
 class ShortlistEstimateWidget extends StatefulWidget {
   const ShortlistEstimateWidget({
     super.key,
@@ -32,16 +32,9 @@ class ShortlistEstimateWidget extends StatefulWidget {
 }
 
 class _ShortlistEstimateWidgetState extends State<ShortlistEstimateWidget> {
-  late final Set<String> _markedTools;
+  // AC05: Starts empty so no estimate is displayed until the user chooses tools.
+  final Set<String> _markedTools = <String>{};
   UsageLevel _selectedLevel = UsageLevel.growth;
-
-  @override
-  void initState() {
-    super.initState();
-    _markedTools = widget.shortlist.recommendations
-        .map((tool) => tool.name)
-        .toSet();
-  }
 
   void _toggleTool(String toolName) {
     setState(() {
@@ -51,6 +44,26 @@ class _ShortlistEstimateWidgetState extends State<ShortlistEstimateWidget> {
         _markedTools.add(toolName);
       }
     });
+  }
+
+  String _currencySymbol(String currency) {
+    return switch (currency) {
+      'USD' => '\$',
+      'EUR' => '€',
+      'GBP' => '£',
+      _ => '$currency ',
+    };
+  }
+
+  String _formatContributionCost(ToolContribution contribution) {
+    if (contribution.monthlyCost == null) {
+      return 'Unknown';
+    }
+    final symbol = _currencySymbol(contribution.currency);
+    final amount = contribution.monthlyCost!;
+    final amountStr = amount.toStringAsFixed(amount % 1 == 0 ? 0 : 2);
+    final unit = contribution.isRecurring ? '/month' : '';
+    return '$symbol$amountStr$unit';
   }
 
   @override
@@ -271,6 +284,18 @@ class _ShortlistEstimateWidgetState extends State<ShortlistEstimateWidget> {
       catalogue: widget.catalogue,
     );
 
+    final isAllRecurring = estimate.contributions.isNotEmpty &&
+        estimate.contributions.every((c) => c.isRecurring);
+    final isAllOneTime = estimate.contributions.isNotEmpty &&
+        estimate.contributions.every((c) => !c.isRecurring);
+    final totalCadence = isAllRecurring
+        ? 'recurring'
+        : isAllOneTime
+            ? 'one-time'
+            : 'mixed cadence';
+    final totalUnit = isAllRecurring ? ' / month' : '';
+    final totalCurrencySymbol = _currencySymbol(estimate.currency ?? 'USD');
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -343,14 +368,12 @@ class _ShortlistEstimateWidgetState extends State<ShortlistEstimateWidget> {
         ),
         const SizedBox(height: 6),
         ...estimate.contributions.map((contribution) {
-          final costText = contribution.monthlyCost != null
-              ? '\$${contribution.monthlyCost!.toStringAsFixed(contribution.monthlyCost! % 1 == 0 ? 0 : 2)}/mo'
-              : 'Unknown';
+          final costText = _formatContributionCost(contribution);
           final cadenceText =
               contribution.isRecurring ? 'recurring' : 'one-time';
 
           return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
+            padding: const EdgeInsets.symmetric(vertical: 5),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -392,6 +415,19 @@ class _ShortlistEstimateWidgetState extends State<ShortlistEstimateWidget> {
                       ),
                     ),
                   ),
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Text(
+                    contribution.lastChecked.isNotEmpty
+                        ? 'Price verified: ${contribution.lastChecked}'
+                        : 'Price unverified',
+                    key: Key('contribution_verified_${contribution.toolName}'),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ),
               ],
             ),
           );
@@ -411,7 +447,7 @@ class _ShortlistEstimateWidgetState extends State<ShortlistEstimateWidget> {
             ),
             if (estimate.total != null)
               Text(
-                '\$${estimate.total!.toStringAsFixed(estimate.total! % 1 == 0 ? 0 : 2)} / mo',
+                '$totalCurrencySymbol${estimate.total!.toStringAsFixed(estimate.total! % 1 == 0 ? 0 : 2)}$totalUnit',
                 key: const Key('project_estimate_total'),
                 style: const TextStyle(
                   fontSize: 16,
@@ -436,7 +472,7 @@ class _ShortlistEstimateWidgetState extends State<ShortlistEstimateWidget> {
           Align(
             alignment: Alignment.centerRight,
             child: Text(
-              '${estimate.currency ?? 'USD'}, recurring',
+              '${estimate.currency ?? 'USD'}, $totalCadence',
               key: const Key('project_estimate_cadence'),
               style: TextStyle(fontSize: 11, color: Colors.grey[600]),
             ),

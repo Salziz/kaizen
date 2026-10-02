@@ -64,7 +64,7 @@ void main() {
 
   group('ShortlistEstimateWidget (TFS-007 User-Facing Features)', () {
     testWidgets(
-      'AC01: user can mark and unmark tools to include/exclude them from estimate',
+      'AC05 on first render: starts empty with clear guidance prompt, no estimate or false \$0 displayed',
       (tester) async {
         await tester.pumpWidget(
           const MaterialApp(
@@ -76,29 +76,26 @@ void main() {
           ),
         );
 
-        // Initially all 3 tools are marked
-        expect(find.text('Shopify'), findsNWidgets(2)); // in tool list + in breakdown
-        expect(find.byKey(const Key('project_estimate_total')), findsOneWidget);
-        expect(find.text('\$29 / mo'), findsOneWidget);
+        // On initial paint, no tools are marked
+        expect(find.byKey(const Key('empty_selection_heading')), findsOneWidget);
+        expect(find.text('No tools marked'), findsOneWidget);
+        expect(find.byKey(const Key('empty_selection_message')), findsOneWidget);
+        expect(
+          find.text(
+            'Mark one or more tools above to calculate your project estimate. '
+            'Choosing tools will show an upfront monthly cost breakdown and '
+            'total based on your assumed usage.',
+          ),
+          findsOneWidget,
+        );
 
-        // Tap Shopify checkbox to unmark it
-        await tester.tap(find.byKey(const Key('tool_checkbox_Shopify')));
-        await tester.pump();
-
-        // Total updates: Shopify removed, remaining Supabase ($0) + Sentry ($0) = $0
-        expect(find.text('\$0 / mo'), findsOneWidget);
-
-        // Tap Shopify checkbox again to mark it
-        await tester.tap(find.byKey(const Key('tool_checkbox_Shopify')));
-        await tester.pump();
-
-        // Total restores to $29
-        expect(find.text('\$29 / mo'), findsOneWidget);
+        // Estimate total is NOT rendered on initial paint
+        expect(find.byKey(const Key('project_estimate_total')), findsNothing);
       },
     );
 
     testWidgets(
-      'AC02: upfront estimate shows plain-words basis assumption',
+      'AC01: user marks tools, estimate appears, and unmarking updates the total',
       (tester) async {
         await tester.pumpWidget(
           const MaterialApp(
@@ -110,7 +107,61 @@ void main() {
           ),
         );
 
-        // Default rung is growth (10,000 requests/month)
+        // Initial state: empty
+        expect(find.byKey(const Key('empty_selection_heading')), findsOneWidget);
+
+        // Mark Shopify ($29)
+        await tester.tap(find.byKey(const Key('tool_checkbox_Shopify')));
+        await tester.pump();
+
+        // Estimate is now displayed with Shopify
+        expect(find.byKey(const Key('empty_selection_heading')), findsNothing);
+        expect(find.byKey(const Key('project_estimate_total')), findsOneWidget);
+        expect(find.text('\$29 / month'), findsOneWidget);
+        expect(find.text('\$29/month (recurring)'), findsOneWidget);
+
+        // Mark Supabase ($0)
+        await tester.tap(find.byKey(const Key('tool_checkbox_Supabase')));
+        await tester.pump();
+
+        expect(find.text('Tool contributions (2):'), findsOneWidget);
+        expect(find.text('\$0/month (recurring)'), findsOneWidget);
+        expect(find.text('\$29 / month'), findsOneWidget);
+
+        // Unmark Shopify -> only Supabase remains ($0)
+        await tester.tap(find.byKey(const Key('tool_checkbox_Shopify')));
+        await tester.pump();
+
+        expect(find.text('Tool contributions (1):'), findsOneWidget);
+        expect(find.text('\$0 / month'), findsOneWidget);
+
+        // Unmark Supabase -> returns to empty selection prompt (AC05)
+        await tester.tap(find.byKey(const Key('tool_checkbox_Supabase')));
+        await tester.pump();
+
+        expect(find.byKey(const Key('empty_selection_heading')), findsOneWidget);
+        expect(find.byKey(const Key('project_estimate_total')), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'AC02 & AC03: upfront estimate shows basis label and ladder updates costs',
+      (tester) async {
+        await tester.pumpWidget(
+          const MaterialApp(
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: ShortlistEstimateWidget(shortlist: sampleShortlist),
+              ),
+            ),
+          ),
+        );
+
+        // Mark Shopify
+        await tester.tap(find.byKey(const Key('tool_checkbox_Shopify')));
+        await tester.pump();
+
+        // Default rung is growth
         expect(
           find.byKey(const Key('usage_assumption_label')),
           findsOneWidget,
@@ -119,25 +170,8 @@ void main() {
           find.text('assumes around 10,000 requests a month'),
           findsOneWidget,
         );
-
-        // Shows upfront total estimate
-        expect(find.text('\$29 / mo'), findsOneWidget);
+        expect(find.text('\$29 / month'), findsOneWidget);
         expect(find.text('USD, recurring'), findsOneWidget);
-      },
-    );
-
-    testWidgets(
-      'AC03: moving along usage ladder updates the total and basis label',
-      (tester) async {
-        await tester.pumpWidget(
-          const MaterialApp(
-            home: Scaffold(
-              body: SingleChildScrollView(
-                child: ShortlistEstimateWidget(shortlist: sampleShortlist),
-              ),
-            ),
-          ),
-        );
 
         // Switch to Starter (1k)
         await tester.tap(find.byKey(const Key('usage_rung_starter')));
@@ -171,6 +205,10 @@ void main() {
             ),
           ),
         );
+
+        // Mark Stripe
+        await tester.tap(find.byKey(const Key('tool_checkbox_Stripe')));
+        await tester.pump();
 
         // Stripe is marked: its cost in the breakdown must read as Unknown (recurring), NOT a dollar amount
         expect(
@@ -213,7 +251,7 @@ void main() {
     );
 
     testWidgets(
-      'AC05: empty selection prompts user to mark tools and never treats empty selection as \$0 estimate',
+      'AC06: each tool contribution surfaces the verification date from the catalogue',
       (tester) async {
         await tester.pumpWidget(
           const MaterialApp(
@@ -225,49 +263,72 @@ void main() {
           ),
         );
 
-        // Unmark all 3 tools
+        // Mark Supabase and Shopify
         await tester.tap(find.byKey(const Key('tool_checkbox_Supabase')));
         await tester.pump();
         await tester.tap(find.byKey(const Key('tool_checkbox_Shopify')));
         await tester.pump();
-        await tester.tap(find.byKey(const Key('tool_checkbox_Sentry')));
-        await tester.pump();
 
-        // Empty selection guidance is shown
-        expect(find.byKey(const Key('empty_selection_heading')), findsOneWidget);
-        expect(find.text('No tools marked'), findsOneWidget);
-        expect(find.byKey(const Key('empty_selection_message')), findsOneWidget);
+        // Verify lastChecked dates are rendered on each row
         expect(
-          find.text(
-            'Mark one or more tools above to calculate your project estimate. '
-            'Choosing tools will show an upfront monthly cost breakdown and '
-            'total based on your assumed usage.',
-          ),
+          find.byKey(const Key('contribution_verified_Supabase')),
           findsOneWidget,
         );
-
-        // The estimate breakdown and total are NOT rendered (no false $0 estimate)
-        expect(find.byKey(const Key('project_estimate_total')), findsNothing);
+        expect(
+          find.byKey(const Key('contribution_verified_Shopify')),
+          findsOneWidget,
+        );
+        expect(find.text('Price verified: 2026-09-26'), findsNWidgets(2));
       },
     );
 
     testWidgets(
-      'AC06: full breakdown shows tool contributions with cadence and total',
+      'reads currency and one-time cadence from model rather than hardcoding',
       (tester) async {
+        const customCatalogue = {
+          'OneTimeSetup': ToolPriceEstimate(
+            monthlyAmount: 50,
+            currency: 'EUR',
+            basis: 'Setup fee',
+            sourceUrl: 'https://example.com',
+            lastChecked: '2026-09-26',
+            isRecurring: false,
+          ),
+        };
+
+        const customShortlist = ShortlistResult(
+          gate: GateResult(verdict: GateVerdict.enough, missing: []),
+          recommendations: [
+            ToolRecommendation(
+              name: 'OneTimeSetup',
+              category: 'Services',
+              rationale: 'Initial setup service',
+              tradeoff: 'Upfront cost',
+            ),
+          ],
+        );
+
         await tester.pumpWidget(
           const MaterialApp(
             home: Scaffold(
               body: SingleChildScrollView(
-                child: ShortlistEstimateWidget(shortlist: sampleShortlist),
+                child: ShortlistEstimateWidget(
+                  shortlist: customShortlist,
+                  catalogue: customCatalogue,
+                ),
               ),
             ),
           ),
         );
 
-        expect(find.text('Tool contributions (3):'), findsOneWidget);
-        expect(find.text('\$0/mo (recurring)'), findsNWidgets(2)); // Supabase & Sentry
-        expect(find.text('\$29/mo (recurring)'), findsOneWidget); // Shopify
-        expect(find.text('\$29 / mo'), findsOneWidget);
+        // Mark OneTimeSetup
+        await tester.tap(find.byKey(const Key('tool_checkbox_OneTimeSetup')));
+        await tester.pump();
+
+        // Verifies EUR currency and one-time cadence are rendered without '/month'
+        expect(find.text('€50 (one-time)'), findsOneWidget);
+        expect(find.text('€50'), findsOneWidget);
+        expect(find.text('EUR, one-time'), findsOneWidget);
       },
     );
   });
@@ -297,7 +358,14 @@ void main() {
         expect(find.byType(ShortlistEstimateWidget), findsOneWidget);
         expect(find.text('Recommended shortlist'), findsOneWidget);
         expect(find.text('Upfront Cost Estimate'), findsOneWidget);
-        expect(find.text('\$29 / mo'), findsOneWidget);
+        // Initially empty selection prompt is visible
+        expect(find.text('No tools marked'), findsOneWidget);
+
+        // User marks Shopify
+        await tester.tap(find.byKey(const Key('tool_checkbox_Shopify')));
+        await tester.pumpAndSettle();
+
+        expect(find.text('\$29 / month'), findsOneWidget);
       },
     );
   });
