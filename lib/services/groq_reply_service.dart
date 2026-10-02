@@ -96,6 +96,11 @@ class GroqReplyService {
   final http.Client _client;
 
   Future<String> generateReply(String prompt) async {
+    final result = await generateShortlistResult(prompt);
+    return result.toReplyText();
+  }
+
+  Future<ShortlistResult> generateShortlistResult(String prompt) async {
     if (apiKey.isEmpty) {
       throw StateError(
         'GROQ_API_KEY is not configured. Run with '
@@ -187,6 +192,6 @@ class GroqReplyService {
     return generateShortlist(
       projectState,
       priceEstimates: kToolPriceCatalogue,
-    ).toReplyText();
+    );
   }
 }

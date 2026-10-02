@@ -44,6 +44,8 @@ class ToolPriceEstimate {
     required this.lastChecked,
     this.variableRate,
     this.knownLimitation,
+    this.isRecurring = true,
+    this.isPriceUnknown = false,
   });
 
   final double monthlyAmount;
@@ -63,6 +65,19 @@ class ToolPriceEstimate {
   /// lower bound (e.g. Stripe flat fee only, excluding transaction value %).
   final String? knownLimitation;
 
+  /// Whether charges for this tool are recurring (monthly) or one-time.
+  /// AC04 requires this attribute to live on the catalogue entry rather
+  /// than being hardcoded at the display boundary.
+  final bool isRecurring;
+
+  /// True when the tool's pricing contains an unmodeled fee component
+  /// (e.g. Stripe's 2.9% transaction-value fee) that cannot be computed
+  /// from the request-volume ladder alone. Per AC04 ("any value the
+  /// catalogue does not hold reads as unknown, never as a number"),
+  /// costAtRequests returns null rather than computing a misleading
+  /// incomplete figure.
+  final bool isPriceUnknown;
+
   bool get hasKnownLimitation => knownLimitation != null;
   bool get isPartial => hasKnownLimitation;
 
@@ -70,10 +85,11 @@ class ToolPriceEstimate {
   /// plus whatever the variable rate computes for that volume. This is
   /// arithmetic over catalogue-held numbers (the fixed amount, the
   /// rate, the free allowance) — never a guess, never an
-  /// interpolation. Returns null only when the variable rate itself
-  /// reports the volume exceeds what the catalogue confidently prices
-  /// (see VariableRate.maxKnownRequests).
+  /// interpolation. Returns null when the price is unknown or when
+  /// the variable rate reports the volume exceeds what the catalogue
+  /// confidently prices (see VariableRate.maxKnownRequests).
   double? costAtRequests(int requestsPerMonth) {
+    if (isPriceUnknown) return null;
     if (variableRate == null) return monthlyAmount;
     final variableCost = variableRate!.costAt(requestsPerMonth);
     if (variableCost == null) return null;

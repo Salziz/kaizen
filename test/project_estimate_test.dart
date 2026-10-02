@@ -86,9 +86,15 @@ void main() {
       expect(restored.recommendations, hasLength(1));
       expect(restored.recommendations.first.name, 'Supabase');
       expect(restored.recommendations.first.category, 'Database and backend');
-      expect(restored.recommendations.first.rationale, 'Scalable relational database');
+      expect(
+        restored.recommendations.first.rationale,
+        'Scalable relational database',
+      );
       expect(restored.recommendations.first.tradeoff, 'Requires SQL knowledge');
-      expect(restored.recommendations.first.budgetAssessment, 'Fits within budget');
+      expect(
+        restored.recommendations.first.budgetAssessment,
+        'Fits within budget',
+      );
       expect(restored.budgetAcknowledgment, 'Budget noted: USD 100');
       expect(restored.budget?.amount, 100);
       expect(restored.budget?.currency, 'USD');
@@ -97,7 +103,7 @@ void main() {
     });
   });
 
-  group('ToolPriceEstimate costAtRequests', () {
+  group('ToolPriceEstimate costAtRequests and isRecurring', () {
     test('combines fixed monthly cost and variable rate', () {
       const estimate = ToolPriceEstimate(
         monthlyAmount: 20,
@@ -129,50 +135,137 @@ void main() {
       expect(estimate.costAtRequests(1000), 29.0);
       expect(estimate.costAtRequests(100000), 29.0);
     });
+
+    test('returns null when isPriceUnknown is true (AC04)', () {
+      const estimate = ToolPriceEstimate(
+        monthlyAmount: 0,
+        currency: 'USD',
+        basis: 'Stripe pricing',
+        sourceUrl: 'https://stripe.com/pricing',
+        lastChecked: '2026-09-26',
+        isPriceUnknown: true,
+      );
+
+      expect(estimate.costAtRequests(1000), isNull);
+      expect(estimate.costAtRequests(10000), isNull);
+      expect(estimate.costAtRequests(100000), isNull);
+    });
+
+    test('carries isRecurring attribute on the catalogue model', () {
+      const recurring = ToolPriceEstimate(
+        monthlyAmount: 10,
+        currency: 'USD',
+        basis: 'Monthly subscription',
+        sourceUrl: 'https://example.com',
+        lastChecked: '2026-09-26',
+        isRecurring: true,
+      );
+      const oneTime = ToolPriceEstimate(
+        monthlyAmount: 50,
+        currency: 'USD',
+        basis: 'One-off setup fee',
+        sourceUrl: 'https://example.com',
+        lastChecked: '2026-09-26',
+        isRecurring: false,
+      );
+
+      expect(recurring.isRecurring, isTrue);
+      expect(oneTime.isRecurring, isFalse);
+    });
   });
 
   group('ProjectEstimate & buildProjectEstimate', () {
-    test('builds accurate upfront estimate across completely known tools at given rung', () {
+    test(
+      'builds accurate upfront estimate across completely known tools at given rung',
+      () {
+        final estimate = buildProjectEstimate(
+          chosenToolNames: ['Shopify', 'Supabase'],
+          usageLevel: UsageLevel.growth,
+          catalogue: kToolPriceCatalogue,
+        );
+
+        expect(estimate.usageLevel, UsageLevel.growth);
+        expect(
+          estimate.usageAssumptionLabel,
+          'assumes around 10,000 requests a month',
+        );
+        expect(estimate.contributions, hasLength(2));
+        expect(estimate.currency, 'USD');
+        expect(estimate.hasUnknownComponent, isFalse);
+        expect(estimate.hasPartialComponent, isFalse);
+
+        // Shopify: 29
+        // Supabase: 0
+        // Total: 29
+        expect(estimate.total, 29.0);
+      },
+    );
+
+    test(
+      'AC04: Stripe cost reads as unknown (never as a number) and excludes it from total',
+      () {
+        final estimate = buildProjectEstimate(
+          chosenToolNames: ['Shopify', 'Supabase', 'Stripe'],
+          usageLevel: UsageLevel.growth,
+          catalogue: kToolPriceCatalogue,
+        );
+
+        expect(estimate.usageLevel, UsageLevel.growth);
+        expect(estimate.contributions, hasLength(3));
+        expect(estimate.hasUnknownComponent, isTrue);
+
+        final stripe = estimate.contributions.firstWhere(
+          (c) => c.toolName == 'Stripe',
+        );
+        // Stripe's cost is null (Unknown) because 2.9% value fee cannot be computed
+        expect(stripe.monthlyCost, isNull);
+        expect(stripe.isRecurring, isTrue);
+        expect(stripe.hasKnownLimitation, isTrue);
+        expect(
+          stripe.knownLimitation,
+          contains('Excludes 2.9% transaction-value fee'),
+        );
+
+        // Grand total is null because an ingredient is unknown (AC04)
+        expect(estimate.total, isNull);
+      },
+    );
+
+    test('propagates isRecurring from catalogue entry to contribution', () {
+      const customCatalogue = {
+        'MonthlySaaS': ToolPriceEstimate(
+          monthlyAmount: 10,
+          currency: 'USD',
+          basis: 'Monthly subscription',
+          sourceUrl: 'https://example.com',
+          lastChecked: '2026-09-26',
+          isRecurring: true,
+        ),
+        'SetupService': ToolPriceEstimate(
+          monthlyAmount: 50,
+          currency: 'USD',
+          basis: 'One-off setup fee',
+          sourceUrl: 'https://example.com',
+          lastChecked: '2026-09-26',
+          isRecurring: false,
+        ),
+      };
+
       final estimate = buildProjectEstimate(
-        chosenToolNames: ['Shopify', 'Supabase'],
-        usageLevel: UsageLevel.growth,
-        catalogue: kToolPriceCatalogue,
+        chosenToolNames: ['MonthlySaaS', 'SetupService'],
+        usageLevel: UsageLevel.starter,
+        catalogue: customCatalogue,
       );
 
-      expect(estimate.usageLevel, UsageLevel.growth);
-      expect(estimate.usageAssumptionLabel, 'assumes around 10,000 requests a month');
-      expect(estimate.contributions, hasLength(2));
-      expect(estimate.currency, 'USD');
-      expect(estimate.hasUnknownComponent, isFalse);
-      expect(estimate.hasPartialComponent, isFalse);
-
-      // Shopify: 29
-      // Supabase: 0
-      // Total: 29
-      expect(estimate.total, 29.0);
-    });
-
-    test('Option 2: displays partial figure for tool with known limitation, and makes grand total null', () {
-      final estimate = buildProjectEstimate(
-        chosenToolNames: ['Shopify', 'Supabase', 'Stripe'],
-        usageLevel: UsageLevel.growth,
-        catalogue: kToolPriceCatalogue,
+      final monthly = estimate.contributions.firstWhere(
+        (c) => c.toolName == 'MonthlySaaS',
+      );
+      final setup = estimate.contributions.firstWhere(
+        (c) => c.toolName == 'SetupService',
       );
 
-      expect(estimate.usageLevel, UsageLevel.growth);
-      expect(estimate.contributions, hasLength(3));
-      expect(estimate.hasUnknownComponent, isFalse);
-      expect(estimate.hasPartialComponent, isTrue);
-
-      final stripe = estimate.contributions.firstWhere((c) => c.toolName == 'Stripe');
-      // Stripe's partial flat-fee cost is shown per-tool ($3,000 at growth), flagged not hidden
-      expect(stripe.monthlyCost, 3000.0);
-      expect(stripe.hasKnownLimitation, isTrue);
-      expect(stripe.isPartial, isTrue);
-      expect(stripe.knownLimitation, contains('Flat fee only'));
-
-      // Grand total is null because an ingredient is partial (Option 2)
-      expect(estimate.total, isNull);
+      expect(monthly.isRecurring, isTrue);
+      expect(setup.isRecurring, isFalse);
     });
 
     test('returns null total when any tool has unknown cost at a rung', () {
@@ -224,13 +317,33 @@ void main() {
   });
 
   group('findCoverageGaps', () {
-    test('all 8 tools in kToolPriceCatalogue have confident pricing at every rung', () {
-      final gaps = findCoverageGaps(
-        allPossibleToolNames: kToolPriceCatalogue.keys.toList(),
+    test(
+      'all 7 deterministic tools in kToolPriceCatalogue have confident pricing at every rung',
+      () {
+        final deterministicTools = kToolPriceCatalogue.keys
+            .where((name) => name != 'Stripe')
+            .toList();
+
+        final gaps = findCoverageGaps(
+          allPossibleToolNames: deterministicTools,
+          catalogue: kToolPriceCatalogue,
+        );
+
+        expect(gaps, isEmpty);
+      },
+    );
+
+    test('Stripe is reported as unknown across all rungs under AC04', () {
+      final stripeGaps = findCoverageGaps(
+        allPossibleToolNames: ['Stripe'],
         catalogue: kToolPriceCatalogue,
       );
 
-      expect(gaps, isEmpty);
+      expect(stripeGaps, [
+        'Stripe: unknown at starter (around 1,000 requests a month)',
+        'Stripe: unknown at growth (around 10,000 requests a month)',
+        'Stripe: unknown at scale (around 100,000 requests a month)',
+      ]);
     });
   });
 }

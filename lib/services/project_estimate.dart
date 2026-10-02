@@ -100,7 +100,7 @@ ProjectEstimate buildProjectEstimate({
       toolName: name,
       monthlyCost: estimate.costAtRequests(usageLevel.requestsPerMonth),
       currency: estimate.currency,
-      isRecurring: true, // all current catalogue entries are recurring
+      isRecurring: estimate.isRecurring,
       lastChecked: estimate.lastChecked,
       knownLimitation: estimate.knownLimitation,
     );
