@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kaizen/models/project_state.dart';
+import 'package:kaizen/models/variable_rate.dart';
 import 'package:kaizen/services/recommendation_gate.dart';
 import 'package:kaizen/services/shortlist_generator.dart';
 
@@ -253,7 +254,10 @@ void main() {
         basis: 'test estimate',
         sourceUrl: 'https://example.com/stripe',
         lastChecked: '2026-09-26',
-        variablePricing: 'transaction fees',
+        variableRate: VariableRate(
+          freeAllowanceRequests: 0,
+          ratePerRequest: 0.30,
+        ),
       ),
       'Supabase': const ToolPriceEstimate(
         monthlyAmount: 5,
