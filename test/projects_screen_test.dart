@@ -6,6 +6,7 @@ import 'package:shared_preferences_platform_interface/shared_preferences_async_p
 import 'package:kaizen/main.dart';
 import 'package:kaizen/screens/chat_screen.dart';
 import 'package:kaizen/screens/onboarding_screen.dart';
+import 'package:kaizen/widgets/kaizen_logo.dart';
 import 'package:kaizen/screens/projects_screen.dart';
 
 void main() {
@@ -33,7 +34,8 @@ void main() {
       await tester.pumpAndSettle();
 
       // Brand & Header
-      expect(find.text('KAIZEN'), findsOneWidget);
+      expect(find.byType(KaizenLogo), findsOneWidget);
+      expect(find.text('kaizen'), findsOneWidget);
       expect(find.byKey(const Key('projects_heading')), findsOneWidget);
 
       // Stats

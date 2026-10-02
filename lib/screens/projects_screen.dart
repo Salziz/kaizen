@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 
 import '../controllers/chat_controller.dart';
 import '../models/project_item.dart';
+import '../widgets/kaizen_logo.dart';
 import 'chat_screen.dart';
 import 'onboarding_screen.dart';
 
@@ -343,44 +344,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Row(
-          children: [
-            Container(
-              width: 30,
-              height: 30,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF8B5CF6).withValues(alpha: 0.35),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: const Center(
-                child: Icon(
-                  Icons.change_history_rounded,
-                  color: Colors.white,
-                  size: 16,
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            const Text(
-              'KAIZEN',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 13,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 2.2,
-              ),
-            ),
-          ],
-        ),
+        const KaizenLogo(size: 26, fontSize: 17),
         // Replay onboarding trigger (useful for demo day presentation)
         TextButton.icon(
           key: const Key('replay_onboarding_button'),

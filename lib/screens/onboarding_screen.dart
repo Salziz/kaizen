@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../controllers/chat_controller.dart';
+import '../widgets/kaizen_logo.dart';
 import 'projects_screen.dart';
 
 /// Models a tool showcase card on Screen 1 of onboarding.
@@ -334,44 +335,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               // Logo / Brand Mark
-              Row(
-                children: [
-                  Container(
-                    width: 28,
-                    height: 28,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF8B5CF6).withValues(alpha: 0.35),
-                          blurRadius: 10,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: const Center(
-                      child: Icon(
-                        Icons.change_history_rounded,
-                        color: Colors.white,
-                        size: 16,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  const Text(
-                    'KAIZEN',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 2.2,
-                    ),
-                  ),
-                ],
-              ),
+              const KaizenLogo(size: 26, fontSize: 17),
               // Skip Button
               if (_currentPage < 4)
                 TextButton(

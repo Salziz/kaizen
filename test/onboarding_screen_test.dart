@@ -6,6 +6,7 @@ import 'package:shared_preferences_platform_interface/shared_preferences_async_p
 
 import 'package:kaizen/main.dart';
 import 'package:kaizen/screens/onboarding_screen.dart';
+import 'package:kaizen/widgets/kaizen_logo.dart';
 
 void main() {
   late InMemorySharedPreferencesAsync preferencesStore;
@@ -25,7 +26,8 @@ void main() {
       await tester.pump();
 
       // Top bar brand & skip button
-      expect(find.text('KAIZEN'), findsOneWidget);
+      expect(find.byType(KaizenLogo), findsOneWidget);
+      expect(find.text('kaizen'), findsOneWidget);
       expect(find.byKey(const Key('onboarding_skip_button')), findsOneWidget);
 
       // Screen 1 headline
@@ -182,7 +184,7 @@ void main() {
       await tester.pump();
 
       expect(find.byType(OnboardingScreen), findsOneWidget);
-      expect(find.text('KAIZEN'), findsOneWidget);
+      expect(find.byType(KaizenLogo), findsOneWidget);
     });
   });
 }
