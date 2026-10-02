@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../controllers/chat_controller.dart';
-import 'chat_screen.dart';
+import 'projects_screen.dart';
 
 /// Models a tool showcase card on Screen 1 of onboarding.
 class OnboardingToolCard {
@@ -218,7 +218,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     } else {
       Navigator.of(context).pushReplacement(
         MaterialPageRoute<void>(
-          builder: (_) => ChatScreen(controller: widget.controller),
+          builder: (_) => ProjectsScreen(controller: widget.controller),
         ),
       );
     }

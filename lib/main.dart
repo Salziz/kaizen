@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'controllers/chat_controller.dart';
 import 'screens/chat_screen.dart';
 import 'screens/onboarding_screen.dart';
+import 'screens/projects_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -18,13 +19,26 @@ class KaizenApp extends StatelessWidget {
     super.key,
     this.controller,
     this.showOnboarding,
+    this.homeScreen,
   });
 
   final ChatController? controller;
   final bool? showOnboarding;
+  final Widget? homeScreen;
 
   @override
   Widget build(BuildContext context) {
+    Widget home;
+    if (homeScreen != null) {
+      home = homeScreen!;
+    } else if (showOnboarding == true) {
+      home = OnboardingScreen(controller: controller);
+    } else if (showOnboarding == false) {
+      home = ProjectsScreen(controller: controller);
+    } else {
+      home = ChatScreen(controller: controller);
+    }
+
     return MaterialApp(
       title: 'Kaizen',
       restorationScopeId: 'kaizen_app',
@@ -36,9 +50,7 @@ class KaizenApp extends StatelessWidget {
         scaffoldBackgroundColor: const Color(0xFF090A0F),
         useMaterial3: true,
       ),
-      home: (showOnboarding ?? false)
-          ? OnboardingScreen(controller: controller)
-          : ChatScreen(controller: controller),
+      home: home,
     );
   }
 }
