@@ -186,7 +186,11 @@ ShortlistResult generateShortlist(
   final budget = state.budget?.isValid == true ? state.budget : null;
   final context = _statedContext(state, budget);
   final candidates = enforceShortlistBounds(
-    _recommendationsFor(projectType: projectType, context: context),
+    _recommendationsFor(
+      projectType: projectType,
+      context: context,
+      state: state,
+    ),
   );
   final combinedMonthlyCosts = _combinedMonthlyCosts(
     candidates,
@@ -506,6 +510,7 @@ String _budgetLabel(Budget budget) {
 List<ToolRecommendation> _recommendationsFor({
   required String projectType,
   required String context,
+  ProjectState? state,
 }) {
   final kind = projectType.toLowerCase();
   if (_containsAny(kind, const ['store', 'shop', 'commerce', 'retail'])) {
@@ -623,7 +628,24 @@ List<ToolRecommendation> _recommendationsFor({
     ];
   }
 
-  return [
+  // Dynamic feature & platform-tailored stack selection
+  final featureSignals =
+      state?.features.map((f) => f.toLowerCase()).join(' ') ?? '';
+  final platformSignals =
+      state?.platforms.map((p) => p.toLowerCase()).join(' ') ?? '';
+  final combinedText = '$kind $featureSignals $platformSignals';
+
+  final result = <ToolRecommendation>[];
+  final addedNames = <String>{};
+
+  void addCandidate(ToolRecommendation tool) {
+    if (addedNames.add(tool.name)) {
+      result.add(tool);
+    }
+  }
+
+  // 1. Database & Core Backend (always fundamental)
+  addCandidate(
     ToolRecommendation(
       name: 'Supabase',
       category: 'Database and backend',
@@ -634,27 +656,125 @@ List<ToolRecommendation> _recommendationsFor({
           'You will need to design the schema and access policies, and verify '
           'that its realtime or hosting limits fit the workload.',
     ),
-    ToolRecommendation(
-      name: 'Firebase',
-      category: 'Managed app backend',
-      rationale:
-          'It provides managed authentication and data services for a '
-          '$projectType, with $context as the known constraint.',
-      tradeoff:
-          'The document model and proprietary APIs can increase migration '
-          'cost and complicate relational data.',
-    ),
-    ToolRecommendation(
-      name: 'Vercel',
-      category: 'Web deployment',
-      rationale:
-          'It offers a straightforward deployment path if the $projectType '
-          'includes a web client; the stated priority is $context.',
-      tradeoff:
-          'It only addresses web deployment, and usage-based limits and '
-          'platform coupling should be reviewed.',
-    ),
-  ];
+  );
+
+  // 2. Payments (if payment/billing/checkout/stripe requested)
+  if (_containsAny(
+      combinedText, const ['pay', 'stripe', 'checkout', 'bill', 'subscrip', 'monetiz'])) {
+    addCandidate(
+      ToolRecommendation(
+        name: 'Stripe',
+        category: 'Payments',
+        rationale:
+            'It provides secure card checkout and subscription processing for a '
+            '$projectType, with $context in mind.',
+        tradeoff:
+            'You own webhook handling and compliance checking; variable percentage '
+            'fees apply per transaction.',
+      ),
+    );
+  }
+
+  // 3. Background workflows / Jobs (if workflow/job/queue/agent/background requested)
+  if (_containsAny(combinedText,
+      const ['workflow', 'job', 'queue', 'task', 'background', 'agent', 'schedule'])) {
+    addCandidate(
+      ToolRecommendation(
+        name: 'Trigger.dev',
+        category: 'Background workflows',
+        rationale:
+            'It provides reliable serverless background jobs and workflow scheduling '
+            'for a $projectType, tailored around $context.',
+        tradeoff:
+            'Worker execution requires long timeouts and job payload monitoring '
+            'as execution frequency scales.',
+      ),
+    );
+  }
+
+  // 4. Error monitoring (if monitoring/error/crash/observability requested)
+  if (_containsAny(combinedText,
+      const ['monitor', 'error', 'crash', 'log', 'sentry', 'observab', 'tracing'])) {
+    addCandidate(
+      ToolRecommendation(
+        name: 'Sentry',
+        category: 'Error monitoring',
+        rationale:
+            'It helps surface crashes and runtime errors early in a '
+            '$projectType, especially when working within $context.',
+        tradeoff:
+            'It does not replace gameplay or operational analytics, and event volume '
+            'can affect cost choices.',
+      ),
+    );
+  }
+
+  // 5. Mobile & Realtime (if mobile/android/ios/flutter/sync requested)
+  if (_containsAny(combinedText,
+      const ['mobile', 'android', 'ios', 'flutter', 'sync', 'realtime', 'push'])) {
+    addCandidate(
+      ToolRecommendation(
+        name: 'Firebase',
+        category: 'Managed app backend',
+        rationale:
+            'It provides managed mobile authentication, cloud sync, and messaging '
+            'for a $projectType, with $context as the known constraint.',
+        tradeoff:
+            'The document model and proprietary APIs can increase migration cost '
+            'and complicate relational data.',
+      ),
+    );
+  }
+
+  // 6. Web deployment
+  if (_containsAny(combinedText,
+          const ['web', 'frontend', 'dashboard', 'saas', 'browser', 'portal', 'api']) ||
+      result.length < 3) {
+    addCandidate(
+      ToolRecommendation(
+        name: 'Vercel',
+        category: 'Web deployment',
+        rationale:
+            'It offers a straightforward deployment path if the $projectType '
+            'includes a web client or API; the stated priority is $context.',
+        tradeoff:
+            'It only addresses web deployment, and usage-based limits and '
+            'platform coupling should be reviewed.',
+      ),
+    );
+  }
+
+  // Fallback candidates to ensure between 3 and 6 tools
+  if (result.length < 3) {
+    addCandidate(
+      ToolRecommendation(
+        name: 'Firebase',
+        category: 'Managed app backend',
+        rationale:
+            'It provides managed authentication and data services for a '
+            '$projectType, with $context as the known constraint.',
+        tradeoff:
+            'The document model and proprietary APIs can increase migration '
+            'cost and complicate relational data.',
+      ),
+    );
+  }
+  if (result.length < 3) {
+    addCandidate(
+      ToolRecommendation(
+        name: 'Sentry',
+        category: 'Error monitoring',
+        rationale:
+            'It helps surface crashes and runtime errors early in a '
+            '$projectType, especially when working within $context.',
+        tradeoff:
+            'It does not replace operational telemetry, and event volume can '
+            'affect cost and data-retention choices.',
+      ),
+    );
+  }
+
+  return result;
 }
 
 bool _containsAny(String value, List<String> terms) =>

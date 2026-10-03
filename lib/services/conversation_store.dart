@@ -24,9 +24,20 @@ class RoundTripRecord {
 }
 
 class ConversationStore {
-  static const _threadKey = 'conversation_thread';
-  static const _draftKey = 'draft_text';
-  static const _roundTripLogKey = 'round_trip_log';
+  ConversationStore({String? projectId})
+      : _threadKey = projectId != null && projectId.isNotEmpty
+            ? 'conversation_thread_$projectId'
+            : 'conversation_thread',
+        _draftKey = projectId != null && projectId.isNotEmpty
+            ? 'draft_text_$projectId'
+            : 'draft_text',
+        _roundTripLogKey = projectId != null && projectId.isNotEmpty
+            ? 'round_trip_log_$projectId'
+            : 'round_trip_log';
+
+  final String _threadKey;
+  final String _draftKey;
+  final String _roundTripLogKey;
 
   final SharedPreferencesAsync _prefs = SharedPreferencesAsync();
   Future<void> _writeLock = Future.value();

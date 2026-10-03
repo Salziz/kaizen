@@ -24,6 +24,29 @@ class ProjectItem {
   final DateTime updatedAt;
   final String status;
 
+  ProjectItem copyWith({
+    String? id,
+    String? title,
+    String? description,
+    String? domain,
+    String? stage,
+    List<String>? tools,
+    String? estimatedMonthlyCost,
+    DateTime? updatedAt,
+    String? status,
+  }) =>
+      ProjectItem(
+        id: id ?? this.id,
+        title: title ?? this.title,
+        description: description ?? this.description,
+        domain: domain ?? this.domain,
+        stage: stage ?? this.stage,
+        tools: tools ?? this.tools,
+        estimatedMonthlyCost: estimatedMonthlyCost ?? this.estimatedMonthlyCost,
+        updatedAt: updatedAt ?? this.updatedAt,
+        status: status ?? this.status,
+      );
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'title': title,

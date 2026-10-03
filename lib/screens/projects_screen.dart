@@ -83,11 +83,12 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => ChatScreen(
-          controller: widget.controller,
           project: project,
         ),
       ),
-    );
+    ).then((_) {
+      if (mounted) _loadProjects();
+    });
   }
 
   void _showNewProjectModal() {
@@ -646,15 +647,75 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     if (project.status == 'Architecture Ready') statusColor = const Color(0xFF10B981);
     if (project.status == 'In Production') statusColor = const Color(0xFF38BDF8);
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      decoration: BoxDecoration(
-        color: const Color(0xFF14151B),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFF27272A)),
+    return Dismissible(
+      key: Key('project_dismissible_${project.id}'),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        margin: const EdgeInsets.only(bottom: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 22),
+        decoration: BoxDecoration(
+          color: const Color(0xFFEF4444).withValues(alpha: 0.18),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: const Color(0xFFEF4444).withValues(alpha: 0.4),
+          ),
+        ),
+        alignment: Alignment.centerRight,
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Delete',
+              style: TextStyle(
+                color: Color(0xFFEF4444),
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+              ),
+            ),
+            SizedBox(width: 6),
+            Icon(Icons.delete_outline_rounded,
+                color: Color(0xFFEF4444), size: 20),
+          ],
+        ),
       ),
-      child: Material(
-        color: Colors.transparent,
+      onDismissed: (_) {
+        final removedIndex = _projects.indexOf(project);
+        final removedProject = project;
+        setState(() {
+          _projects.removeAt(removedIndex);
+        });
+        unawaited(_saveProjects());
+
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: const Color(0xFF1C1D24),
+            content: Text(
+              'Deleted "${removedProject.title}"',
+              style: const TextStyle(color: Colors.white, fontSize: 13),
+            ),
+            action: SnackBarAction(
+              label: 'Undo',
+              textColor: const Color(0xFF818CF8),
+              onPressed: () {
+                setState(() {
+                  _projects.insert(removedIndex, removedProject);
+                });
+                unawaited(_saveProjects());
+              },
+            ),
+          ),
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 14),
+        decoration: BoxDecoration(
+          color: const Color(0xFF14151B),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFF27272A)),
+        ),
+        child: Material(
+          color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(18),
           onTap: () => _openProject(project),
@@ -811,8 +872,9 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   String _formatTime(DateTime date) {
     final diff = DateTime.now().difference(date);

@@ -83,4 +83,11 @@ const Map<String, ToolPriceEstimate> kToolPriceCatalogue = {
     sourceUrl: 'https://getstream.io/chat/pricing/',
     lastChecked: '2026-09-26',
   ),
+  'Trigger.dev': ToolPriceEstimate(
+    monthlyAmount: 0,
+    currency: 'USD',
+    basis: 'Free tier - 50K compute seconds/month, background jobs',
+    sourceUrl: 'https://trigger.dev/pricing',
+    lastChecked: '2026-10-02',
+  ),
 };

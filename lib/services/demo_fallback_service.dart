@@ -98,8 +98,9 @@ class DemoFallbackService {
         period: BudgetPeriod.unspecified,
       );
     } else {
-      // Look for dollar amounts: e.g. "$50", "$100/mo", "50 dollars", "50/month"
-      final regex = RegExp(r'\$(\d+(?:\.\d+)?)|(\d+(?:\.\d+)?)\s*(?:dollars|usd|\/mo|per month)');
+      // Look for dollar amounts or budget statements: e.g. "$50", "budget 100", "50 dollars", "50/month"
+      final regex = RegExp(
+          r'(?:budget\s*(?:of|is|:)?\s*[\$€£]?|[\$€£])\s*(\d+(?:\.\d+)?)|(\d+(?:\.\d+)?)\s*(?:dollars|usd|bucks|\/mo|per month)');
       final match = regex.firstMatch(lower);
       if (match != null) {
         final amountStr = match.group(1) ?? match.group(2);
@@ -109,7 +110,10 @@ class DemoFallbackService {
           budget = Budget(
             amount: amount,
             currency: 'USD',
-            hard: lower.contains('hard') || lower.contains('max') || lower.contains('cap') || lower.contains('limit'),
+            hard: lower.contains('hard') ||
+                lower.contains('max') ||
+                lower.contains('cap') ||
+                lower.contains('limit'),
             period: isMonthly ? BudgetPeriod.monthly : BudgetPeriod.unspecified,
           );
         }

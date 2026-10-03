@@ -379,4 +379,21 @@ void main() {
       ),
     );
   });
+
+  test('dynamically selects tools based on requested features (payments, workflows)', () {
+    final result = generateShortlist(
+      const ProjectState(
+        projectType: 'fitness SaaS app',
+        platforms: ['web', 'ios'],
+        features: ['payments', 'background jobs', 'error monitoring'],
+      ),
+    );
+
+    expect(result.canRecommend, isTrue);
+    expect(result.recommendations.length, inInclusiveRange(3, 6));
+    final toolNames = result.recommendations.map((r) => r.name).toList();
+    expect(toolNames, contains('Stripe'));
+    expect(toolNames, contains('Trigger.dev'));
+    expect(toolNames, contains('Sentry'));
+  });
 }

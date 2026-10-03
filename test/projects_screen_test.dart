@@ -191,5 +191,31 @@ void main() {
       // Now Live indicator appears
       expect(find.text('Live'), findsOneWidget);
     });
+
+    testWidgets('Swiping a project card deletes it and allows undo', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: ProjectsScreen(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Pulse AI'), findsOneWidget);
+
+      // Swipe to delete Pulse AI
+      await tester.drag(find.text('Pulse AI'), const Offset(-500, 0));
+      await tester.pumpAndSettle();
+
+      // Pulse AI is deleted
+      expect(find.text('Pulse AI'), findsNothing);
+      expect(find.text('Deleted "Pulse AI"'), findsOneWidget);
+
+      // Tap Undo
+      await tester.tap(find.text('Undo'));
+      await tester.pumpAndSettle();
+
+      // Restored
+      expect(find.text('Pulse AI'), findsOneWidget);
+    });
   });
 }

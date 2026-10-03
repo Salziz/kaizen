@@ -51,6 +51,7 @@ class _ChatScreenState extends State<ChatScreen>
   bool _initialized = false;
   bool _isSending = false;
   bool _hasGroqKey = false;
+  late ProjectItem? _currentProject;
 
   @override
   String get restorationId => 'chat_screen';
@@ -58,7 +59,8 @@ class _ChatScreenState extends State<ChatScreen>
   @override
   void initState() {
     super.initState();
-    _store = ConversationStore();
+    _currentProject = widget.project;
+    _store = ConversationStore(projectId: widget.project?.id);
     _ownsController = widget.controller == null;
     _controller = widget.controller ?? ChatController(_store);
     _controller.addListener(_onControllerChanged);
@@ -77,6 +79,130 @@ class _ChatScreenState extends State<ChatScreen>
     }
   }
 
+  Future<void> _persistProjectUpdate(ProjectItem updated) async {
+    setState(() {
+      _currentProject = updated;
+    });
+    try {
+      final raw = await _preferences.getString('saved_projects');
+      if (raw != null) {
+        final list = ProjectItem.decodeList(raw);
+        final index = list.indexWhere((p) => p.id == updated.id);
+        if (index != -1) {
+          list[index] = updated;
+          await _preferences.setString(
+              'saved_projects', ProjectItem.encodeList(list));
+        }
+      }
+    } catch (_) {}
+  }
+
+  String _deriveShortTitle(String text) {
+    final clean = text.replaceAll(RegExp(r'[^a-zA-Z0-9\s]'), ' ').trim();
+    final words = clean.split(RegExp(r'\s+')).where((w) {
+      final l = w.toLowerCase();
+      return l.length > 2 &&
+          !const [
+            'the',
+            'and',
+            'for',
+            'with',
+            'from',
+            'this',
+            'that',
+            'building',
+            'create',
+            'make',
+            'want',
+            'need',
+            'app',
+            'application',
+            'project',
+            'platform',
+            'tool',
+            'system',
+            'stack'
+          ].contains(l);
+    }).toList();
+    if (words.length >= 2) {
+      String cap(String s) =>
+          s[0].toUpperCase() + s.substring(1).toLowerCase();
+      return '${cap(words[0])} ${cap(words[1])}';
+    } else if (words.isNotEmpty) {
+      String cap(String s) =>
+          s[0].toUpperCase() + s.substring(1).toLowerCase();
+      return '${cap(words[0])} Hub';
+    }
+    return 'App Workspace';
+  }
+
+  void _showEditTitleDialog() {
+    final controller = TextEditingController(
+        text: _currentProject?.title ?? widget.projectTitle);
+    showDialog<void>(
+      context: context,
+      builder: (dialogCtx) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF14151B),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: const BorderSide(color: Color(0xFF27272A)),
+          ),
+          title: const Text(
+            'Rename Project',
+            style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w700),
+          ),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            style: const TextStyle(color: Colors.white),
+            decoration: InputDecoration(
+              hintText: 'Project Name',
+              hintStyle: const TextStyle(color: Color(0xFF71717A)),
+              filled: true,
+              fillColor: const Color(0xFF1C1D24),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Color(0xFF27272A)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Color(0xFF818CF8)),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx),
+              child: const Text('Cancel',
+                  style: TextStyle(color: Color(0xFFA1A1AA))),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final newName = controller.text.trim();
+                if (newName.isNotEmpty && _currentProject != null) {
+                  unawaited(_persistProjectUpdate(
+                      _currentProject!.copyWith(title: newName)));
+                }
+                Navigator.pop(dialogCtx);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF818CF8),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
+              ),
+              child: const Text('Save'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   void restoreState(RestorationBucket? oldBucket, bool initialRestore) {
     registerForRestoration(_backgroundedAt, 'backgrounded_at');
@@ -88,8 +214,13 @@ class _ChatScreenState extends State<ChatScreen>
 
   Future<void> _initialize() async {
     await _controller.loadInitialState();
-    if (_controller.messages.isEmpty && widget.project != null) {
-      _seedProjectConversation(widget.project!);
+    if (_controller.messages.isEmpty && _currentProject != null) {
+      if (_currentProject!.title == 'Pulse AI' ||
+          _currentProject!.title == 'Kite Mobile' ||
+          _currentProject!.title == 'Nova Storefront') {
+        _seedProjectConversation(_currentProject!);
+        unawaited(_store.saveThread(_controller.messages));
+      }
     }
     final draft = await _store.loadDraft();
     if (!mounted) {
@@ -323,12 +454,36 @@ class _ChatScreenState extends State<ChatScreen>
 
     setState(() => _isSending = true);
     try {
+      // Auto-name untitled project on first prompt
+      if (_currentProject != null &&
+          (_currentProject!.title.startsWith('Untitled') ||
+              _currentProject!.title.startsWith('New project'))) {
+        final autoTitle = _deriveShortTitle(text);
+        unawaited(_persistProjectUpdate(
+            _currentProject!.copyWith(title: autoTitle)));
+      }
+
       await _controller.sendMessage(text);
       if (!mounted) {
         return;
       }
       _textController.clear();
       await _store.saveDraft('');
+
+      // If a shortlist was produced, update project metadata (tools, status)
+      if (_currentProject != null && _controller.messages.isNotEmpty) {
+        final lastMsg = _controller.messages.last;
+        if (lastMsg.shortlist != null &&
+            lastMsg.shortlist!.recommendations.isNotEmpty) {
+          final recommendedTools =
+              lastMsg.shortlist!.recommendations.map((r) => r.name).toList();
+          unawaited(_persistProjectUpdate(_currentProject!.copyWith(
+            tools: recommendedTools,
+            status: 'Architecture Ready',
+            updatedAt: DateTime.now(),
+          )));
+        }
+      }
     } finally {
       if (mounted) {
         setState(() => _isSending = false);
@@ -440,22 +595,42 @@ class _ChatScreenState extends State<ChatScreen>
             preferredSize: Size.fromHeight(1),
             child: Divider(height: 1, color: Color(0xFF27272A)),
           ),
-          title: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                widget.project?.title ?? widget.projectTitle,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                ),
+          title: InkWell(
+            key: const Key('chat_title_button'),
+            onTap: _showEditTitleDialog,
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          _currentProject?.title ?? widget.projectTitle,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 5),
+                      const Icon(Icons.edit_outlined,
+                          size: 13, color: Color(0xFF71717A)),
+                    ],
+                  ),
+                  Text(
+                    'Last reply: ${_controller.lastRoundTripMs == null ? '—' : '${(_controller.lastRoundTripMs! / 1000).toStringAsFixed(1)}s'}',
+                    style: const TextStyle(
+                        fontSize: 11, color: Color(0xFFA1A1AA)),
+                  ),
+                ],
               ),
-              Text(
-                'Last reply: ${_controller.lastRoundTripMs == null ? '—' : '${(_controller.lastRoundTripMs! / 1000).toStringAsFixed(1)}s'}',
-                style: const TextStyle(fontSize: 11, color: Color(0xFFA1A1AA)),
-              ),
-            ],
+            ),
           ),
           actions: [
             Tooltip(
