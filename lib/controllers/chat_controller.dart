@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 
 import '../models/chat_message.dart';
 import '../services/conversation_store.dart';
+import '../services/demo_fallback_service.dart';
 import '../services/groq_reply_service.dart';
 import '../services/shortlist_generator.dart';
 
@@ -46,9 +47,23 @@ class ChatController extends ChangeNotifier {
     this._store, {
     ReplySender? replySender,
     this._timeoutDuration = const Duration(seconds: 30),
-  }) : _replySender =
-           replySender ??
-           GroqReplyService.fromEnvironment().generateShortlistResult;
+  }) : _replySender = replySender ?? _defaultReplySender;
+
+  static Future<dynamic> _defaultReplySender(String text) async {
+    const apiKey = String.fromEnvironment('GROQ_API_KEY');
+    if (apiKey.isNotEmpty) {
+      try {
+        return await GroqReplyService.fromEnvironment()
+            .generateShortlistResult(text);
+      } catch (error) {
+        if (isNetworkUnreachable(error)) {
+          rethrow;
+        }
+        return DemoFallbackService.generateShortlistResult(text);
+      }
+    }
+    return DemoFallbackService.generateShortlistResult(text);
+  }
 
   final ConversationStore _store;
   final ReplySender _replySender;

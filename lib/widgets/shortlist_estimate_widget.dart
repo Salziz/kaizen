@@ -81,7 +81,7 @@ class _ShortlistEstimateWidgetState extends State<ShortlistEstimateWidget> {
             style: const TextStyle(
               fontSize: 14.5,
               fontWeight: FontWeight.w600,
-              color: Color(0xFF1B2B27),
+              color: Color(0xFFFAFAFA),
             ),
           ),
           const SizedBox(height: 12),
@@ -91,13 +91,13 @@ class _ShortlistEstimateWidgetState extends State<ShortlistEstimateWidget> {
           style: TextStyle(
             fontSize: 15,
             fontWeight: FontWeight.bold,
-            color: Color(0xFF0F6B5C),
+            color: Color(0xFF10B981),
           ),
         ),
         const SizedBox(height: 4),
-        Text(
+        const Text(
           'Mark tools to include or exclude them from your project estimate:',
-          style: TextStyle(fontSize: 12.5, color: Colors.grey[700]),
+          style: TextStyle(fontSize: 12.5, color: Color(0xFFA1A1AA)),
         ),
         const SizedBox(height: 10),
         ...recommendations.map((tool) => _buildToolTile(tool)),
@@ -113,10 +113,10 @@ class _ShortlistEstimateWidgetState extends State<ShortlistEstimateWidget> {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: const Color(0xFF1C1D24),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
-          color: isMarked ? const Color(0xFF0F6B5C) : const Color(0xFFDFE3E9),
+          color: isMarked ? const Color(0xFF10B981) : const Color(0xFF27272A),
           width: isMarked ? 1.5 : 1.0,
         ),
       ),
@@ -132,7 +132,9 @@ class _ShortlistEstimateWidgetState extends State<ShortlistEstimateWidget> {
               Checkbox(
                 key: Key('tool_checkbox_${tool.name}'),
                 value: isMarked,
-                activeColor: const Color(0xFF0F6B5C),
+                activeColor: const Color(0xFF10B981),
+                checkColor: Colors.black,
+                side: const BorderSide(color: Color(0xFF71717A)),
                 onChanged: (_) => _toggleTool(tool.name),
               ),
               const SizedBox(width: 4),
@@ -147,7 +149,7 @@ class _ShortlistEstimateWidgetState extends State<ShortlistEstimateWidget> {
                           style: const TextStyle(
                             fontSize: 14.5,
                             fontWeight: FontWeight.bold,
-                            color: Color(0xFF1B2B27),
+                            color: Colors.white,
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -157,7 +159,7 @@ class _ShortlistEstimateWidgetState extends State<ShortlistEstimateWidget> {
                             vertical: 2,
                           ),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFE8F3F1),
+                            color: const Color(0x2610B981),
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
@@ -165,7 +167,7 @@ class _ShortlistEstimateWidgetState extends State<ShortlistEstimateWidget> {
                             style: const TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
-                              color: Color(0xFF0F6B5C),
+                              color: Color(0xFF34D399),
                             ),
                           ),
                         ),
@@ -176,17 +178,17 @@ class _ShortlistEstimateWidgetState extends State<ShortlistEstimateWidget> {
                       tool.rationale,
                       style: const TextStyle(
                         fontSize: 13,
-                        color: Color(0xFF2C3E38),
+                        color: Color(0xFFD4D4D8),
                       ),
                     ),
                     if (tool.tradeoff.isNotEmpty) ...[
                       const SizedBox(height: 3),
                       Text(
                         'Tradeoff: ${tool.tradeoff}',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 12,
                           fontStyle: FontStyle.italic,
-                          color: Colors.grey[700],
+                          color: Color(0xFFA1A1AA),
                         ),
                       ),
                     ],
@@ -196,7 +198,7 @@ class _ShortlistEstimateWidgetState extends State<ShortlistEstimateWidget> {
                         tool.budgetAssessment,
                         style: const TextStyle(
                           fontSize: 12,
-                          color: Color(0xFF55655E),
+                          color: Color(0xFF71717A),
                         ),
                       ),
                     ],
@@ -215,9 +217,9 @@ class _ShortlistEstimateWidgetState extends State<ShortlistEstimateWidget> {
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: const Color(0xFF14151B),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFDFE3E9)),
+        border: Border.all(color: const Color(0xFF27272A)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -227,7 +229,7 @@ class _ShortlistEstimateWidgetState extends State<ShortlistEstimateWidget> {
               Icon(
                 Icons.calculate_outlined,
                 size: 20,
-                color: Color(0xFF0F6B5C),
+                color: Color(0xFF10B981),
               ),
               SizedBox(width: 8),
               Text(
@@ -235,7 +237,7 @@ class _ShortlistEstimateWidgetState extends State<ShortlistEstimateWidget> {
                 style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.bold,
-                  color: Color(0xFF1B2B27),
+                  color: Colors.white,
                 ),
               ),
             ],
@@ -248,23 +250,23 @@ class _ShortlistEstimateWidgetState extends State<ShortlistEstimateWidget> {
               padding: const EdgeInsets.symmetric(vertical: 8),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
+                children: const [
+                  Text(
                     'No tools marked',
                     key: Key('empty_selection_heading'),
                     style: TextStyle(
                       fontWeight: FontWeight.w600,
                       fontSize: 13.5,
-                      color: Color(0xFF8A5A00),
+                      color: Color(0xFFFBBF24),
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  SizedBox(height: 4),
                   Text(
                     'Mark one or more tools above to calculate your project estimate. '
                     'Choosing tools will show an upfront monthly cost breakdown and '
                     'total based on your assumed usage.',
-                    key: const Key('empty_selection_message'),
-                    style: TextStyle(fontSize: 12.5, color: Colors.grey[700]),
+                    key: Key('empty_selection_message'),
+                    style: TextStyle(fontSize: 12.5, color: Color(0xFFA1A1AA)),
                   ),
                 ],
               ),
@@ -300,12 +302,12 @@ class _ShortlistEstimateWidgetState extends State<ShortlistEstimateWidget> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Usage level selector (AC03)
-        Text(
+        const Text(
           'Usage assumption ladder:',
           style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w600,
-            color: Colors.grey[700],
+            color: Color(0xFFA1A1AA),
           ),
         ),
         const SizedBox(height: 6),
@@ -330,13 +332,18 @@ class _ShortlistEstimateWidgetState extends State<ShortlistEstimateWidget> {
                         fontWeight:
                             isSelected ? FontWeight.bold : FontWeight.normal,
                         color:
-                            isSelected ? Colors.white : const Color(0xFF1B2B27),
+                            isSelected ? Colors.black : const Color(0xFFA1A1AA),
                       ),
                     ),
                   ),
                   selected: isSelected,
-                  selectedColor: const Color(0xFF0F6B5C),
-                  backgroundColor: const Color(0xFFF3F5F8),
+                  selectedColor: const Color(0xFF10B981),
+                  backgroundColor: const Color(0xFF1C1D24),
+                  side: BorderSide(
+                    color: isSelected
+                        ? const Color(0xFF10B981)
+                        : const Color(0xFF27272A),
+                  ),
                   onSelected: (_) {
                     setState(() => _selectedLevel = level);
                   },
@@ -350,20 +357,20 @@ class _ShortlistEstimateWidgetState extends State<ShortlistEstimateWidget> {
         Text(
           estimate.usageAssumptionLabel,
           key: const Key('usage_assumption_label'),
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: 12.5,
             fontStyle: FontStyle.italic,
-            color: Colors.grey[700],
+            color: Color(0xFFA1A1AA),
           ),
         ),
-        const Divider(height: 20),
+        const Divider(height: 20, color: Color(0xFF27272A)),
         // Per-tool breakdown (AC04 & AC06)
         Text(
           'Tool contributions (${estimate.contributions.length}):',
           style: const TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.bold,
-            color: Color(0xFF1B2B27),
+            color: Colors.white,
           ),
         ),
         const SizedBox(height: 6),
@@ -385,7 +392,7 @@ class _ShortlistEstimateWidgetState extends State<ShortlistEstimateWidget> {
                       style: const TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: Color(0xFF1B2B27),
+                        color: Colors.white,
                       ),
                     ),
                     Text(
@@ -395,8 +402,8 @@ class _ShortlistEstimateWidgetState extends State<ShortlistEstimateWidget> {
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
                         color: contribution.monthlyCost != null
-                            ? const Color(0xFF0F6B5C)
-                            : const Color(0xFF8A5A00),
+                            ? const Color(0xFF34D399)
+                            : const Color(0xFFFBBF24),
                       ),
                     ),
                   ],
@@ -409,9 +416,9 @@ class _ShortlistEstimateWidgetState extends State<ShortlistEstimateWidget> {
                       key: Key(
                         'contribution_limitation_${contribution.toolName}',
                       ),
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 11,
-                        color: Colors.orange[900],
+                        color: Color(0xFFFB923C),
                       ),
                     ),
                   ),
@@ -422,9 +429,9 @@ class _ShortlistEstimateWidgetState extends State<ShortlistEstimateWidget> {
                         ? 'Price verified: ${contribution.lastChecked}'
                         : 'Price unverified',
                     key: Key('contribution_verified_${contribution.toolName}'),
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 11,
-                      color: Colors.grey[600],
+                      color: Color(0xFF71717A),
                     ),
                   ),
                 ),
@@ -432,7 +439,7 @@ class _ShortlistEstimateWidgetState extends State<ShortlistEstimateWidget> {
             ),
           );
         }),
-        const Divider(height: 20),
+        const Divider(height: 20, color: Color(0xFF27272A)),
         // Grand total (AC02, AC03, AC04)
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -442,7 +449,7 @@ class _ShortlistEstimateWidgetState extends State<ShortlistEstimateWidget> {
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.bold,
-                color: Color(0xFF1B2B27),
+                color: Colors.white,
               ),
             ),
             if (estimate.total != null)
@@ -452,7 +459,7 @@ class _ShortlistEstimateWidgetState extends State<ShortlistEstimateWidget> {
                 style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  color: Color(0xFF0F6B5C),
+                  color: Color(0xFF10B981),
                 ),
               )
             else
@@ -462,7 +469,7 @@ class _ShortlistEstimateWidgetState extends State<ShortlistEstimateWidget> {
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  color: Color(0xFF8A5A00),
+                  color: Color(0xFFFBBF24),
                 ),
               ),
           ],
@@ -474,18 +481,18 @@ class _ShortlistEstimateWidgetState extends State<ShortlistEstimateWidget> {
             child: Text(
               '${estimate.currency ?? 'USD'}, $totalCadence',
               key: const Key('project_estimate_cadence'),
-              style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+              style: const TextStyle(fontSize: 11, color: Color(0xFFA1A1AA)),
             ),
           ),
         ] else ...[
           const SizedBox(height: 4),
-          Text(
+          const Text(
             'Total cannot be calculated because pricing for one or more chosen tools is unknown at this usage level.',
-            key: const Key('project_estimate_caveat'),
+            key: Key('project_estimate_caveat'),
             style: TextStyle(
               fontSize: 11.5,
               fontStyle: FontStyle.italic,
-              color: Colors.grey[700],
+              color: Color(0xFFA1A1AA),
             ),
           ),
         ],

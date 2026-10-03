@@ -68,7 +68,10 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   void _openProject(ProjectItem project) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => ChatScreen(controller: widget.controller),
+        builder: (_) => ChatScreen(
+          controller: widget.controller,
+          project: project,
+        ),
       ),
     );
   }
