@@ -12,6 +12,7 @@ import '../services/conversation_store.dart';
 import '../services/recommendation_gate.dart';
 import '../services/shortlist_generator.dart';
 import '../widgets/shortlist_estimate_widget.dart';
+import '../widgets/groq_api_key_modal.dart';
 
 const _characterLimit = 2000;
 const _warningThreshold = 1800;
@@ -49,6 +50,7 @@ class _ChatScreenState extends State<ChatScreen>
   int _lastMessageCount = 0;
   bool _initialized = false;
   bool _isSending = false;
+  bool _hasGroqKey = false;
 
   @override
   String get restorationId => 'chat_screen';
@@ -63,6 +65,16 @@ class _ChatScreenState extends State<ChatScreen>
     WidgetsBinding.instance.addObserver(this);
     unawaited(_restorePersistedBackgroundTime());
     unawaited(_initialize());
+    unawaited(_checkGroqKeyStatus());
+  }
+
+  Future<void> _checkGroqKeyStatus() async {
+    final key = await _preferences.getString('groq_api_key');
+    if (mounted) {
+      setState(() {
+        _hasGroqKey = key != null && key.trim().isNotEmpty;
+      });
+    }
   }
 
   @override
@@ -445,6 +457,27 @@ class _ChatScreenState extends State<ChatScreen>
               ),
             ],
           ),
+          actions: [
+            Tooltip(
+              message: _hasGroqKey
+                  ? 'Groq Live Mode (Active)'
+                  : 'Configure Groq API Key',
+              child: IconButton(
+                key: const Key('chat_api_key_button'),
+                icon: Icon(
+                  _hasGroqKey ? Icons.bolt_rounded : Icons.key_outlined,
+                  color: _hasGroqKey
+                      ? const Color(0xFF10B981)
+                      : const Color(0xFFA1A1AA),
+                ),
+                onPressed: () async {
+                  await showGroqApiKeyModal(context,
+                      onKeyChanged: _checkGroqKeyStatus);
+                },
+              ),
+            ),
+            const SizedBox(width: 8),
+          ],
         ),
         body: SafeArea(
           child: Column(
