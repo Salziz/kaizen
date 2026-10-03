@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
 import '../models/chat_message.dart';
@@ -50,17 +51,23 @@ class ChatController extends ChangeNotifier {
   }) : _replySender = replySender ?? _defaultReplySender;
 
   static Future<dynamic> _defaultReplySender(String text) async {
-    const apiKey = String.fromEnvironment('GROQ_API_KEY');
+    final prefs = SharedPreferencesAsync();
+    final customKey = await prefs.getString('groq_api_key');
+    const envKey = String.fromEnvironment('GROQ_API_KEY');
+    final apiKey =
+        (customKey != null && customKey.trim().isNotEmpty) ? customKey.trim() : envKey;
+
     if (apiKey.isNotEmpty) {
-      try {
-        return await GroqReplyService.fromEnvironment()
-            .generateShortlistResult(text);
-      } catch (error) {
-        if (isNetworkUnreachable(error)) {
-          rethrow;
-        }
-        return DemoFallbackService.generateShortlistResult(text);
-      }
+      final customModel = await prefs.getString('groq_model');
+      const envModel =
+          String.fromEnvironment('GROQ_MODEL', defaultValue: 'openai/gpt-oss-120b');
+      final model =
+          (customModel != null && customModel.trim().isNotEmpty)
+              ? customModel.trim()
+              : envModel;
+
+      final service = GroqReplyService(apiKey: apiKey, model: model);
+      return await service.generateShortlistResult(text);
     }
     return DemoFallbackService.generateShortlistResult(text);
   }

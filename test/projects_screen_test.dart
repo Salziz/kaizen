@@ -159,5 +159,37 @@ void main() {
 
       expect(find.byType(ProjectsScreen), findsOneWidget);
     });
+
+    testWidgets('Configuring Groq API key updates live indicator', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: ProjectsScreen(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Starts in fallback mode
+      expect(find.text('API Key'), findsOneWidget);
+
+      // Open settings modal
+      await tester.tap(find.byKey(const Key('api_key_settings_button')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Groq Live API Settings'), findsOneWidget);
+
+      // Enter mock key
+      await tester.enterText(
+        find.byKey(const Key('groq_api_key_input')),
+        'gsk_test1234567890abcdef',
+      );
+      await tester.pump();
+
+      // Tap save
+      await tester.tap(find.byKey(const Key('save_groq_key_button')));
+      await tester.pumpAndSettle();
+
+      // Now Live indicator appears
+      expect(find.text('Live'), findsOneWidget);
+    });
   });
 }

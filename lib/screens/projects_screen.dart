@@ -27,11 +27,24 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   List<ProjectItem> _projects = [];
   String _selectedFilter = 'All';
   bool _isLoading = true;
+  bool _hasGroqKey = false;
 
   @override
   void initState() {
     super.initState();
     unawaited(_loadProjects());
+    unawaited(_checkGroqKeyStatus());
+  }
+
+  Future<void> _checkGroqKeyStatus() async {
+    final savedKey = await _preferences.getString('groq_api_key');
+    const envKey = String.fromEnvironment('GROQ_API_KEY');
+    if (mounted) {
+      setState(() {
+        _hasGroqKey =
+            (savedKey != null && savedKey.trim().isNotEmpty) || envKey.isNotEmpty;
+      });
+    }
   }
 
   Future<void> _loadProjects() async {
@@ -340,6 +353,225 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     );
   }
 
+  void _showApiKeyModal() async {
+    final currentKey = await _preferences.getString('groq_api_key') ?? '';
+    final currentModel =
+        await _preferences.getString('groq_model') ?? 'openai/gpt-oss-120b';
+    final keyController = TextEditingController(text: currentKey);
+    final modelController = TextEditingController(text: currentModel);
+    bool obscureKey = true;
+
+    if (!mounted) return;
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF14151B),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (modalContext, setModalState) {
+            final hasKey = keyController.text.trim().isNotEmpty;
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 24,
+                bottom: MediaQuery.of(modalContext).viewInsets.bottom + 24,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            hasKey ? Icons.bolt_rounded : Icons.key_rounded,
+                            color: hasKey ? const Color(0xFF10B981) : Colors.white,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'Groq Live API Settings',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(modalContext),
+                        icon: const Icon(Icons.close, color: Color(0xFFA1A1AA)),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    hasKey
+                        ? 'Live Groq API mode is ACTIVE. Messages will be sent to the real Groq completion endpoint.'
+                        : 'Currently using Stage-Safe Demo Fallback. Enter your Groq API key to test live LLM fact extraction.',
+                    style: TextStyle(
+                      color: hasKey ? const Color(0xFF34D399) : const Color(0xFFA1A1AA),
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  const Text(
+                    'GROQ API KEY',
+                    style: TextStyle(
+                      color: Color(0xFF71717A),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    key: const Key('groq_api_key_input'),
+                    controller: keyController,
+                    obscureText: obscureKey,
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    decoration: InputDecoration(
+                      hintText: 'gsk_...',
+                      hintStyle: const TextStyle(color: Color(0xFF52525B)),
+                      filled: true,
+                      fillColor: const Color(0xFF1C1D24),
+                      contentPadding:
+                          const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFF27272A)),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFF27272A)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFF10B981)),
+                      ),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          obscureKey ? Icons.visibility_off : Icons.visibility,
+                          color: const Color(0xFF71717A),
+                          size: 18,
+                        ),
+                        onPressed: () =>
+                            setModalState(() => obscureKey = !obscureKey),
+                      ),
+                    ),
+                    onChanged: (_) => setModalState(() {}),
+                  ),
+                  const SizedBox(height: 14),
+                  const Text(
+                    'MODEL',
+                    style: TextStyle(
+                      color: Color(0xFF71717A),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    key: const Key('groq_model_input'),
+                    controller: modelController,
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    decoration: InputDecoration(
+                      hintText: 'openai/gpt-oss-120b',
+                      hintStyle: const TextStyle(color: Color(0xFF52525B)),
+                      filled: true,
+                      fillColor: const Color(0xFF1C1D24),
+                      contentPadding:
+                          const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFF27272A)),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFF27272A)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFF10B981)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      if (currentKey.isNotEmpty) ...[
+                        Expanded(
+                          child: OutlinedButton(
+                            key: const Key('clear_groq_key_button'),
+                            onPressed: () async {
+                              await _preferences.remove('groq_api_key');
+                              await _checkGroqKeyStatus();
+                              if (ctx.mounted) Navigator.pop(modalContext);
+                            },
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFFEF4444),
+                              side: const BorderSide(color: Color(0xFF7F1D1D)),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: const Text('Clear Key'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                      ],
+                      Expanded(
+                        child: ElevatedButton(
+                          key: const Key('save_groq_key_button'),
+                          onPressed: () async {
+                            final key = keyController.text.trim();
+                            final model = modelController.text.trim();
+                            if (key.isNotEmpty) {
+                              await _preferences.setString('groq_api_key', key);
+                            } else {
+                              await _preferences.remove('groq_api_key');
+                            }
+                            if (model.isNotEmpty) {
+                              await _preferences.setString('groq_model', model);
+                            }
+                            await _checkGroqKeyStatus();
+                            if (ctx.mounted) Navigator.pop(modalContext);
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF10B981),
+                            foregroundColor: Colors.black,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: Text(
+                            hasKey ? 'Save & Connect' : 'Use Fallback',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   // ---------------------------------------------------------------------------
   // Top App Bar
   // ---------------------------------------------------------------------------
@@ -347,28 +579,84 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        const KaizenLogo(size: 26, fontSize: 17),
-        // Replay onboarding trigger (useful for demo day presentation)
-        TextButton.icon(
-          key: const Key('replay_onboarding_button'),
-          onPressed: _replayOnboarding,
-          icon: const Icon(Icons.refresh_rounded, size: 14, color: Color(0xFFA1A1AA)),
-          label: const Text(
-            'Intro Demo',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFFA1A1AA),
+        const KaizenLogo(size: 24, fontSize: 16),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // API Key / Live Groq mode trigger
+            Tooltip(
+              message: _hasGroqKey ? 'Groq Live Mode (Active)' : 'Configure Groq API Key',
+              child: InkWell(
+                key: const Key('api_key_settings_button'),
+                onTap: _showApiKeyModal,
+                borderRadius: BorderRadius.circular(20),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: _hasGroqKey
+                        ? const Color(0xFF10B981).withValues(alpha: 0.12)
+                        : const Color(0xFF14151B),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: _hasGroqKey ? const Color(0xFF10B981) : const Color(0xFF27272A),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        _hasGroqKey ? Icons.bolt_rounded : Icons.key_outlined,
+                        size: 13,
+                        color: _hasGroqKey ? const Color(0xFF10B981) : const Color(0xFFA1A1AA),
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        _hasGroqKey ? 'Live' : 'API Key',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: _hasGroqKey ? const Color(0xFF10B981) : const Color(0xFFA1A1AA),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
-          ),
-          style: TextButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            backgroundColor: const Color(0xFF14151B),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-              side: const BorderSide(color: Color(0xFF27272A)),
+            const SizedBox(width: 8),
+            // Replay onboarding trigger (useful for demo day presentation)
+            Tooltip(
+              message: 'Replay Onboarding Tour',
+              child: InkWell(
+                key: const Key('replay_onboarding_button'),
+                onTap: _replayOnboarding,
+                borderRadius: BorderRadius.circular(20),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF14151B),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: const Color(0xFF27272A)),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.refresh_rounded, size: 13, color: Color(0xFFA1A1AA)),
+                      SizedBox(width: 5),
+                      Text(
+                        'Demo',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFFA1A1AA),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
-          ),
+          ],
         ),
       ],
     );
