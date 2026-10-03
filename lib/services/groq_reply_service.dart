@@ -72,7 +72,7 @@ class _UnwrappingIOClient extends http.BaseClient {
 class GroqReplyService {
   GroqReplyService({
     required this.apiKey,
-    this.model = 'openai/gpt-oss-120b',
+    this.model = 'llama-3.3-70b-versatile',
     Uri? endpoint,
     http.Client? client,
   })  : _endpoint = endpoint ??
@@ -84,7 +84,7 @@ class GroqReplyService {
       apiKey: const String.fromEnvironment('GROQ_API_KEY'),
       model: const String.fromEnvironment(
         'GROQ_MODEL',
-        defaultValue: 'openai/gpt-oss-120b',
+        defaultValue: 'llama-3.3-70b-versatile',
       ),
       client: client,
     );

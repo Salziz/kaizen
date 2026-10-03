@@ -60,11 +60,14 @@ class ChatController extends ChangeNotifier {
     if (apiKey.isNotEmpty) {
       final customModel = await prefs.getString('groq_model');
       const envModel =
-          String.fromEnvironment('GROQ_MODEL', defaultValue: 'openai/gpt-oss-120b');
-      final model =
+          String.fromEnvironment('GROQ_MODEL', defaultValue: 'llama-3.3-70b-versatile');
+      var model =
           (customModel != null && customModel.trim().isNotEmpty)
               ? customModel.trim()
               : envModel;
+      if (model == 'openai/gpt-oss-120b') {
+        model = 'llama-3.3-70b-versatile';
+      }
 
       final service = GroqReplyService(apiKey: apiKey, model: model);
       return await service.generateShortlistResult(text);

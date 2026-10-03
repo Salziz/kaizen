@@ -8,8 +8,11 @@ Future<void> showGroqApiKeyModal(
 }) async {
   final preferences = SharedPreferencesAsync();
   final currentKey = (await preferences.getString('groq_api_key')) ?? '';
-  final currentModel =
-      (await preferences.getString('groq_model')) ?? 'openai/gpt-oss-120b';
+  var savedModel = await preferences.getString('groq_model');
+  if (savedModel == null || savedModel == 'openai/gpt-oss-120b') {
+    savedModel = 'llama-3.3-70b-versatile';
+  }
+  final currentModel = savedModel;
 
   final keyController = TextEditingController(text: currentKey);
   final modelController = TextEditingController(text: currentModel);
@@ -144,7 +147,7 @@ Future<void> showGroqApiKeyModal(
                   controller: modelController,
                   style: const TextStyle(color: Colors.white, fontSize: 14),
                   decoration: InputDecoration(
-                    hintText: 'e.g. openai/gpt-oss-120b',
+                    hintText: 'e.g. llama-3.3-70b-versatile',
                     hintStyle: const TextStyle(color: Color(0xFF52525B)),
                     filled: true,
                     fillColor: const Color(0xFF1C1D24),
@@ -164,7 +167,35 @@ Future<void> showGroqApiKeyModal(
                     ),
                   ),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    ActionChip(
+                      label: const Text('llama-3.3-70b-versatile',
+                          style: TextStyle(fontSize: 11, color: Color(0xFF10B981))),
+                      backgroundColor: const Color(0xFF1C1D24),
+                      side: const BorderSide(color: Color(0xFF27272A)),
+                      onPressed: () {
+                        setModalState(() {
+                          modelController.text = 'llama-3.3-70b-versatile';
+                        });
+                      },
+                    ),
+                    ActionChip(
+                      label: const Text('llama-3.1-8b-instant',
+                          style: TextStyle(fontSize: 11, color: Color(0xFFA1A1AA))),
+                      backgroundColor: const Color(0xFF1C1D24),
+                      side: const BorderSide(color: Color(0xFF27272A)),
+                      onPressed: () {
+                        setModalState(() {
+                          modelController.text = 'llama-3.1-8b-instant';
+                        });
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
                 Row(
                   children: [
                     if (currentKey.isNotEmpty) ...[

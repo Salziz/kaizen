@@ -29,11 +29,11 @@ flutter run -d <device-id> `
   --dart-define=GROQ_API_KEY=$env:GROQ_API_KEY
 ```
 
-The default model is `openai/gpt-oss-120b`, matching the current Groq example.
+The default model is `llama-3.3-70b-versatile`, Groq's premier open model.
 Override it when needed with:
 
 ```powershell
-$env:GROQ_MODEL = "openai/gpt-oss-120b"
+$env:GROQ_MODEL = "llama-3.3-70b-versatile"
 ```
 
 The key is embedded in a development mobile build, so this approach is for
