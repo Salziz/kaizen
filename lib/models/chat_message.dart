@@ -1,3 +1,5 @@
+import '../services/shortlist_generator.dart';
+
 enum MessageStatus { pending, sent, failed }
 
 enum MessageSender { user, assistant }
@@ -9,6 +11,7 @@ class ChatMessage {
     required this.sender,
     required this.timestamp,
     required this.status,
+    this.shortlist,
   });
 
   final String id;
@@ -16,6 +19,7 @@ class ChatMessage {
   final MessageSender sender;
   final DateTime timestamp;
   final MessageStatus status;
+  final ShortlistResult? shortlist;
 
   ChatMessage copyWith({
     String? id,
@@ -23,6 +27,7 @@ class ChatMessage {
     MessageSender? sender,
     DateTime? timestamp,
     MessageStatus? status,
+    ShortlistResult? shortlist,
   }) {
     return ChatMessage(
       id: id ?? this.id,
@@ -30,6 +35,7 @@ class ChatMessage {
       sender: sender ?? this.sender,
       timestamp: timestamp ?? this.timestamp,
       status: status ?? this.status,
+      shortlist: shortlist ?? this.shortlist,
     );
   }
 
@@ -40,6 +46,9 @@ class ChatMessage {
       sender: MessageSender.values.byName(json['sender'] as String),
       timestamp: DateTime.parse(json['timestamp'] as String),
       status: MessageStatus.values.byName(json['status'] as String),
+      shortlist: json['shortlist'] != null
+          ? ShortlistResult.fromJson(json['shortlist'] as Map<String, dynamic>)
+          : null,
     );
   }
 
@@ -50,6 +59,7 @@ class ChatMessage {
       'sender': sender.name,
       'timestamp': timestamp.toIso8601String(),
       'status': status.name,
+      if (shortlist != null) 'shortlist': shortlist!.toJson(),
     };
   }
 }

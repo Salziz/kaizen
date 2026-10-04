@@ -1,11 +1,19 @@
 import 'shortlist_generator.dart';
+import '../models/variable_rate.dart';
 
 /// Rough monthly estimates reviewed against provider pricing pages on
-/// 2026-09-26. They are not quotes; replies include the source and review date.
-/// Amounts are USD. A non-USD budget gets a fit/break verdict only when no
-/// exchange rate is required (zero listed fixed cost, or a zero cap against a
-/// strictly positive listed cost or positive variable fee). Variable fees are
-/// otherwise unknown unless the stated cap itself settles the comparison.
+/// 2026-09-26. They are not quotes; replies include the source and review
+/// date. Amounts are USD.
+///
+/// NOTE ON STRIPE PRICING (AC04):
+/// Stripe's published rate is "2.9% + 30 cents per transaction."
+/// While the flat 30-cent fee is known per request, the 2.9% transaction-value
+/// component requires knowing the monetary volume per transaction, which
+/// the request-volume ladder does not collect.
+/// Per AC04 ("any value the catalogue does not hold reads as unknown, never as
+/// a number"), Stripe's estimate is classified as unknown (`isPriceUnknown: true`,
+/// `monthlyCost: null`) at every ladder rung rather than displaying an incomplete
+/// flat-fee number that misrepresents the actual cost to the user.
 const Map<String, ToolPriceEstimate> kToolPriceCatalogue = {
   'Supabase': ToolPriceEstimate(
     monthlyAmount: 0,
@@ -31,10 +39,21 @@ const Map<String, ToolPriceEstimate> kToolPriceCatalogue = {
   'Stripe': ToolPriceEstimate(
     monthlyAmount: 0,
     currency: 'USD',
-    basis: 'No fixed monthly fee; US domestic online card pricing',
+    basis:
+        'No fixed monthly fee; US domestic online card pricing is 2.9% + \$0.30 '
+        'per transaction. Total cost depends on transaction dollar volume, which '
+        'is unstated, so cost at all usage rungs reads as unknown per AC04.',
     sourceUrl: 'https://stripe.com/pricing',
     lastChecked: '2026-09-26',
-    variablePricing: '2.9% + 30 cents per transaction',
+    variableRate: VariableRate(
+      freeAllowanceRequests: 0,
+      ratePerRequest: 0.30,
+      maxKnownRequests: null,
+    ),
+    isRecurring: true,
+    isPriceUnknown: true,
+    knownLimitation:
+        'Excludes 2.9% transaction-value fee which requires transaction volume; total cost is unknown.',
   ),
   'Shopify': ToolPriceEstimate(
     monthlyAmount: 29,

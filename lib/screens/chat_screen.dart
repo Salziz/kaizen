@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../controllers/chat_controller.dart';
 import '../models/chat_message.dart';
 import '../services/conversation_store.dart';
+import '../widgets/shortlist_estimate_widget.dart';
 
 const _characterLimit = 2000;
 const _warningThreshold = 1800;
@@ -523,6 +524,16 @@ class _AssistantBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (message.shortlist != null && message.shortlist!.canRecommend) {
+      return Container(
+        width: double.infinity,
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        color: const Color(0xFFF3F5F8),
+        child: ShortlistEstimateWidget(shortlist: message.shortlist!),
+      );
+    }
+
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.symmetric(vertical: 4),

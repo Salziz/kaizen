@@ -7,10 +7,11 @@ import 'package:uuid/uuid.dart';
 import '../models/chat_message.dart';
 import '../services/conversation_store.dart';
 import '../services/groq_reply_service.dart';
+import '../services/shortlist_generator.dart';
 
 enum ReplyState { idle, waiting, overdue, received, noAnswer }
 
-typedef ReplySender = Future<String> Function(String text);
+typedef ReplySender = Future<dynamic> Function(String text);
 
 class ChatController extends ChangeNotifier {
   static const unreachableErrorMessage =
@@ -46,7 +47,8 @@ class ChatController extends ChangeNotifier {
     ReplySender? replySender,
     this._timeoutDuration = const Duration(seconds: 30),
   }) : _replySender =
-           replySender ?? GroqReplyService.fromEnvironment().generateReply;
+           replySender ??
+           GroqReplyService.fromEnvironment().generateShortlistResult;
 
   final ConversationStore _store;
   final ReplySender _replySender;
@@ -190,7 +192,8 @@ class ChatController extends ChangeNotifier {
 
     try {
       final stopwatch = Stopwatch()..start();
-      final replyText = await _replySender(_projectDescriptionThrough(message));
+      final replyResult =
+          await _replySender(_projectDescriptionThrough(message));
       stopwatch.stop();
       budgetTimer.cancel();
       lastRoundTripMs = stopwatch.elapsedMilliseconds;
@@ -201,8 +204,8 @@ class ChatController extends ChangeNotifier {
             .catchError((_) {}),
       );
 
-      if (replyText.isNotEmpty) {
-        await _receiveReply(message.id, exchangeToken, replyText);
+      if (replyResult != null) {
+        await _receiveReply(message.id, exchangeToken, replyResult);
       }
     } catch (error) {
       budgetTimer.cancel();
@@ -237,9 +240,26 @@ class ChatController extends ChangeNotifier {
   Future<void> _receiveReply(
     String forMessageId,
     int exchangeToken,
-    String replyText,
+    dynamic replyResult,
   ) async {
     if (exchangeToken != _activeExchangeToken) {
+      return;
+    }
+
+    final String replyText;
+    final ShortlistResult? shortlist;
+    if (replyResult is ShortlistResult) {
+      replyText = replyResult.toReplyText();
+      shortlist = replyResult;
+    } else if (replyResult is String) {
+      replyText = replyResult;
+      shortlist = null;
+    } else {
+      replyText = replyResult.toString();
+      shortlist = null;
+    }
+
+    if (replyText.isEmpty) {
       return;
     }
 
@@ -251,6 +271,7 @@ class ChatController extends ChangeNotifier {
         sender: MessageSender.assistant,
         timestamp: DateTime.now(),
         status: MessageStatus.sent,
+        shortlist: shortlist,
       );
       messages.add(reply);
       await _store.upsertMessage(reply);
